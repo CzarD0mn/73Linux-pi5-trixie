@@ -14,15 +14,17 @@ INSTALL(){
 
 	w1hkj_latest() {
 		local name="$1"
+		local dest="${BUILDDIR:-.}"
 		if declare -F bap_download_w1hkj >/dev/null; then
-			bap_download_w1hkj "$name"
+			bap_download_w1hkj "$name" "$dest"
 			return $?
 		fi
 		local tar
 		tar=$(curl -fsSL --max-time 20 "https://www.w1hkj.org/files/${name}/" \
-			| grep -oE "${name}-[0-9][0-9.]*\.tar\.gz" | sort -V | tail -1)
+			| grep -oE "${name}-[0-9]+(\.[0-9]+)*\.tar\.gz" | sort -V | tail -1)
 		[ -n "$tar" ] || return 1
-		wget --tries 2 --connect-timeout=60 "https://www.w1hkj.org/files/${name}/${tar}"
+		wget -q --tries 2 --connect-timeout=60 -O "${dest}/${tar}" \
+			"https://www.w1hkj.org/files/${name}/${tar}" || return 1
 		echo "$tar"
 	}
 
@@ -57,42 +59,46 @@ INSTALL(){
 	if ! apt-cache show libjpeg9-dev >/dev/null 2>&1; then LIBJPG=libjpeg-dev; fi
 	fi
 	sudo apt-get install -y build-essential pkg-config libfltk1.3-dev $LIBJPG libxft-dev libxinerama-dev libxcursor-dev libsndfile1-dev libsamplerate0-dev portaudio19-dev libpulse-dev libusb-1.0-0-dev texinfo libudev-dev
-	FLX=$(ldconfig -p | grep flxmlrpc)
-	if [ -z "$FLX" ]; then
-		#determine latest FLXMLRPC & download
-		cd ${BUILDDIR} || return
-		FLXM=$(w1hkj_latest flxmlrpc) || return
-		XMPKG=${FLXM%.tar.gz}
-		tar -zxvf ${FLXM}
+	mkdir -p "${BUILDDIR}"
+	cd "${BUILDDIR}" || return
 
-		#build FLXMLRPC
-		cd ${XMPKG} || return
+	FLX=$(ldconfig -p | grep flxmlrpc || true)
+	if [ -z "$FLX" ]; then
+		FLXM=$(w1hkj_latest flxmlrpc) || return
+		FLXM=$(basename "${FLXM}" | tr -d '\r' | tail -1)
+		tar -xzf "${BUILDDIR}/${FLXM}"
+		XMPKG=$(tar -tzf "${BUILDDIR}/${FLXM}" | head -1 | cut -d/ -f1)
+		cd "${BUILDDIR}/${XMPKG}" || return
 		./configure --prefix=/usr/local --enable-static
-		make
+		make -j "${BAPCORE:-$(nproc)}"
 		sudo make install
 		sudo ldconfig
-		sudo make clean
-		rm ${BUILDDIR}/*.gz
+		cd "${BUILDDIR}"
+		rm -f "${BUILDDIR}/${FLXM}"
 	fi
 	PACKAGE=fldigi
 	CLEANSOURCE
-	#Determine latest FLDIGI
+	cd "${BUILDDIR}" || return
+	# Download and unpack in the same directory. Do not capture wget noise.
 	FLTAR=$(w1hkj_latest fldigi) || return
-	FLPKG=$(echo ${FLTAR} | sed 's/.tar.gz//')
-
-	#Download latest FLDIGI tar file
-	cd ${BUILDDIR} || return
-	# tarball already downloaded into BUILDDIR by w1hkj_latest
-	tar -zxvf ${FLTAR}
-
-	#build FLDIGI
-	cd ${FLPKG} || return
+	FLTAR=$(basename "${FLTAR}" | tr -d '\r' | grep -E '^fldigi-[0-9].*\.tar\.gz$' | tail -1)
+	if [ -z "$FLTAR" ] || [ ! -f "${BUILDDIR}/${FLTAR}" ]; then
+		FLTAR=$(ls -1 "${BUILDDIR}"/fldigi-*.tar.gz 2>/dev/null | tail -1)
+		FLTAR=$(basename "${FLTAR}")
+	fi
+	if [ ! -f "${BUILDDIR}/${FLTAR}" ]; then
+		echo "ERROR: fldigi tarball not found in ${BUILDDIR}"
+		return 1
+	fi
+	echo "Unpacking ${FLTAR}"
+	tar -xzf "${BUILDDIR}/${FLTAR}"
+	FLPKG=$(tar -tzf "${BUILDDIR}/${FLTAR}" | head -1 | cut -d/ -f1)
+	cd "${BUILDDIR}/${FLPKG}" || return
 	./configure --prefix=/usr/local --enable-static
-	make
+	make -j "${BAPCORE:-$(nproc)}"
 	sudo make install
 	sudo ldconfig
-	sudo make clean
-	rm ${BUILDDIR}/*.gz
+	rm -f "${BUILDDIR}/${FLTAR}"
 }
 
 

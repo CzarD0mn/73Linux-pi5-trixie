@@ -17,3 +17,4 @@ version=4.1.14
         set-enviroment.sh is user-space only (no sudo)
         Recognize debian / raspios / Trixie and Raspberry Pi 5 device-tree
         bootstrap.sh overlays patches onto official km4ack/73Linux
+	FLDIGI unpack looks for the tarball in BUILDDIR after download

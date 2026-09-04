@@ -14,15 +14,17 @@ INSTALL(){
 
 	w1hkj_latest() {
 		local name="$1"
+		local dest="${BUILDDIR:-.}"
 		if declare -F bap_download_w1hkj >/dev/null; then
-			bap_download_w1hkj "$name"
+			bap_download_w1hkj "$name" "$dest"
 			return $?
 		fi
 		local tar
 		tar=$(curl -fsSL --max-time 20 "https://www.w1hkj.org/files/${name}/" \
-			| grep -oE "${name}-[0-9][0-9.]*\.tar\.gz" | sort -V | tail -1)
+			| grep -oE "${name}-[0-9]+(\.[0-9]+)*\.tar\.gz" | sort -V | tail -1)
 		[ -n "$tar" ] || return 1
-		wget --tries 2 --connect-timeout=60 "https://www.w1hkj.org/files/${name}/${tar}"
+		wget -q --tries 2 --connect-timeout=60 -O "${dest}/${tar}" \
+			"https://www.w1hkj.org/files/${name}/${tar}" || return 1
 		echo "$tar"
 	}
 
