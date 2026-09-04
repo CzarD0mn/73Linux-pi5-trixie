@@ -44,6 +44,10 @@ patch_files=(
   app/stable/pi/CHIRP.bapp
   app/stable/pi/FLDIGI.bapp
   app/stable/pi/FLRIG.bapp
+  app/stable/pi/FLAMP.bapp
+  app/stable/pi/FLMSG.bapp
+  app/stable/pi/FLNET.bapp
+  app/stable/pi/FLWRAP.bapp
   app/stable/pi/EES.bapp
   app/stable/pi/PITERM.bapp
   app/stable/pi/QTSOUND.bapp

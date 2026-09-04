@@ -1,0 +1,116 @@
+BAPP=4.0
+ID=FLWRAP
+Name=flwrap
+Comment='File Encapsulation'
+Ver=Update:1.3.5
+localVer=0
+
+
+INSTALL(){
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	w1hkj_latest() {
+		local name="$1"
+		if declare -F bap_download_w1hkj >/dev/null; then
+			bap_download_w1hkj "$name"
+			return $?
+		fi
+		local tar
+		tar=$(curl -fsSL --max-time 20 "https://www.w1hkj.org/files/${name}/" \
+			| grep -oE "${name}-[0-9][0-9.]*\.tar\.gz" | sort -V | tail -1)
+		[ -n "$tar" ] || return 1
+		wget --tries 2 --connect-timeout=60 "https://www.w1hkj.org/files/${name}/${tar}"
+		echo "$tar"
+	}
+
+
+
+	CLEANSOURCE(){
+		#this function removes any old source files before
+		#new files are downloaded for installation. This
+		#function is called by install functions below.
+		PACKAGE=$(ls ${HOME}/.bap-source-files | grep ${PACKAGE})
+		echo "package is $PACKAGE"
+		if [ -z $PACKAGE ]; then
+			echo "no old package found"
+		else
+			if [ -d ${HOME}/.bap-source-files/${PACKAGE} ]; then
+		   		echo "Dir to remove is ${HOME}/.bap-source-files/${PACKAGE}/"
+		   		rm -rf ${HOME}/.bap-source-files/${PACKAGE}/
+			fi
+		fi
+	
+	}
+
+	##################################
+	#	DEPENDS
+	##################################
+	#install needed depends
+	#check to see if 32 or 64 bit to detemine correct dependency
+	if [ `getconf LONG_BIT` = '64' ]; then
+	LIBJPG=libjpeg62-turbo-dev
+	if ! apt-cache show libjpeg62-turbo-dev >/dev/null 2>&1; then LIBJPG=libjpeg-dev; fi
+	else
+	LIBJPG=libjpeg9-dev
+	if ! apt-cache show libjpeg9-dev >/dev/null 2>&1; then LIBJPG=libjpeg-dev; fi
+	fi
+	sudo apt-get install -y build-essential pkg-config libfltk1.3-dev $LIBJPG libxft-dev libxinerama-dev libxcursor-dev libsndfile1-dev libsamplerate0-dev portaudio19-dev libpulse-dev libusb-1.0-0-dev texinfo libudev-dev
+	FLX=$(ldconfig -p | grep flxmlrpc)
+	if [ -z "$FLX" ]; then
+		#determine latest FLXMLRPC & download
+		cd ${BUILDDIR} || return
+		FLXM=$(w1hkj_latest flxmlrpc) || return
+		XMPKG=${FLXM%.tar.gz}
+		tar -zxvf ${FLXM}
+
+		#build FLXMLRPC
+		cd ${XMPKG} || return
+		./configure --prefix=/usr/local --enable-static
+		make
+		sudo make install
+		sudo ldconfig
+		sudo make clean
+		rm ${BUILDDIR}/*.gz
+	fi
+
+	PACKAGE=flwrap
+	CLEANSOURCE
+
+	#Determine latest FLWRAP
+	WRAPTAR=$(w1hkj_latest flwrap) || return
+	WRAPPKG=$(echo ${WRAPTAR} | sed 's/.tar.gz//')
+
+	#Download latest FLWRAP
+	cd ${BUILDDIR} || return
+	# tarball already downloaded into BUILDDIR by w1hkj_latest
+	tar -zxvf ${WRAPTAR}
+
+	#Build FLRIG
+	cd ${WRAPPKG} || return
+	./configure --prefix=/usr/local --enable-static
+	make
+	sudo make install
+	sudo ldconfig
+	sudo make clean
+	rm ${BUILDDIR}/*.gz
+}
+
+
+VERSION(){
+		if ! hash flwrap 2>/dev/null; then
+			CURRENT=0
+			NEWVER=$(curl --max-time 20 -s https://sourceforge.net/projects/fldigi/files/flwrap/ | grep .tar.gz | head -1 | awk -F "-" '{print $2}' | awk -F ".tar.gz" '{print $1}')
+		else		
+			CURRENT=$(flwrap --version | sed 's/Version: //')
+			NEWVER=$(curl --max-time 20 -s https://sourceforge.net/projects/fldigi/files/flwrap/ | grep .tar.gz | head -1 | awk -F "-" '{print $2}' | awk -F ".tar.gz" '{print $1}')
+		fi
+}
+
+REMOVE(){
+	DIR=$(ls $BUILDDIR | grep flwrap)
+	cd ${BUILDDIR}/${DIR}
+	sudo make uninstall
+}
