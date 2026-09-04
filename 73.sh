@@ -109,42 +109,46 @@ fi
 
 cd ${BAPDIR}
 
-echo "#######################################"
-echo "#  Updating repository & verifying    #"
-echo "#  a few needed items needed before   #"
-echo "#  we begin.                          #"
-echo "#                                     #"
-echo "#  Enter your sudo password if asked  #"
-echo "#######################################"
-sudo apt update
-sudo apt install -y curl wget ca-certificates build-essential cmake pkg-config \
-	python3-dev python3-setuptools python3-pip python3-venv fuse3 || true
-if ! hash yad 2>/dev/null; then
-	sudo apt install -y yad
-fi
-
-if ! hash jq 2>/dev/null; then
-	sudo apt install -y jq
-fi
-
-if ! hash bc >/dev/null; then
-	sudo apt install -y bc
-fi
-
-if ! hash git >/dev/null; then
-	sudo apt install -y git
-fi
-
 #####################################
 #	Verify not run as root
 #####################################
 if [ `whoami` = 'root' ]; then
-	yad --form --width=500 --text-align=center --center --title="73 Linux" --text-align=center \
-		--image ${LOGO} --window-icon=${LOGO} --image-on-top --separator="|" --item-separator="|" \
-		--text="<b>ROOT DETECTED</b>\rDon't run this script as root. \
-Restart the script without sudo" \
-		--button=gtk-close
+	echo "ROOT DETECTED. Do not run 73.sh as root or with sudo."
+	if hash yad 2>/dev/null; then
+		yad --form --width=500 --text-align=center --center --title="73 Linux" --text-align=center \
+			--image ${LOGO} --window-icon=${LOGO} --image-on-top --separator="|" --item-separator="|" \
+			--text="<b>ROOT DETECTED</b>\rDon't run this script as root. Restart without sudo" \
+			--button=gtk-close
+	fi
 	exit 1
+fi
+
+echo "#######################################"
+echo "#  Updating repository & verifying    #"
+echo "#  a few needed items needed before   #"
+echo "#  we begin.                          #"
+echo "#  Package installs may ask for sudo. #"
+echo "#  set-enviroment.sh does not use it. #"
+echo "#######################################"
+if hash sudo 2>/dev/null; then
+	sudo apt update
+	sudo apt install -y curl wget ca-certificates build-essential cmake pkg-config \
+		python3-dev python3-setuptools python3-pip python3-venv fuse3 || true
+	if ! hash yad 2>/dev/null; then
+		sudo apt install -y yad
+	fi
+	if ! hash jq 2>/dev/null; then
+		sudo apt install -y jq
+	fi
+	if ! hash bc >/dev/null; then
+		sudo apt install -y bc
+	fi
+	if ! hash git >/dev/null; then
+		sudo apt install -y git
+	fi
+else
+	echo "sudo is not available; skipping package installs."
+	echo "Install yad jq bc git curl wget yourself if they are missing."
 fi
 
 touch $HOME/.config/KM4ACK
