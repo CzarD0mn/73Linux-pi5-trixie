@@ -1,0 +1,63 @@
+BAPP=4.0
+ID=HAMLIB
+Name=hamlib
+Comment='rig control software'
+Ver=Update:4.5
+localVer=0
+
+
+INSTALL(){
+	CLEANSOURCE(){
+		PACKAGE=$(ls ${HOME}/.bap-source-files | grep ${PACKAGE})
+		echo "package is $PACKAGE"
+		if [ -z $PACKAGE ]; then
+			echo "no old package found"
+		else
+			if [ -d ${HOME}/.bap-source-files/${PACKAGE} ]; then
+		   		echo "Dir to remove is ${HOME}/.bap-source-files/${PACKAGE}/"
+		   		rm -rf ${HOME}/.bap-source-files/${PACKAGE}/
+			fi
+		fi
+	}
+
+    PACKAGE=hamlib
+    CLEANSOURCE
+    sudo apt install -y libusb-1.0-0 libusb-1.0-0-dev swig libxml2-dev python3-dev python3-setuptools
+    pyver=$(python3 -V | awk '{print $2}' | awk -F. '{print $1"."$2}')
+    cd ${BUILDDIR} || return
+    NEWRIG=$(curl -s https://sourceforge.net/projects/hamlib/files/latest/download |
+        grep -oE 'hamlib/[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n 1 | awk -F "/" '{print $2}')
+    if [ -z "$NEWRIG" ]; then
+        NEWRIG=4.6.2
+    fi
+    HAMLIBLINK=https://sourceforge.net/projects/hamlib/files/hamlib/${NEWRIG}/hamlib-${NEWRIG}.tar.gz
+    wget --tries 2 --connect-timeout=60 ${HAMLIBLINK} || wget --tries 2 --connect-timeout=60 "${HAMLIBLINK}/download" -O hamlib-${NEWRIG}.tar.gz
+    tar -xzf hamlib-${NEWRIG}.tar.gz
+    rm -f hamlib*.tar.gz
+    cd hamlib-${NEWRIG} || return
+
+    ./configure --with-xml-support --with-python-binding PYTHON_VERSION=$pyver || ./configure --with-xml-support
+    make -j $BAPCORE
+    sudo make install
+    sudo ldconfig
+    sudo make clean
+    rm ${BUILDDIR}/*.gz
+}
+
+VERSION(){
+	if ! hash rigctl 2>/dev/null; then
+		CURRENT=0
+		NEWVER=$(curl --max-time 20 -s https://sourceforge.net/projects/hamlib/files/latest/download | grep -o https://downloads.sourceforge.net/project/hamlib/hamlib/[0-9].[0-9] | head -n 1 | awk -F "/" '{print $7}')
+	else
+		CURRENT=$(rigctl --version | awk '{print $3}')
+		NEWVER=$(curl --max-time 20 -s https://sourceforge.net/projects/hamlib/files/latest/download | grep -o https://downloads.sourceforge.net/project/hamlib/hamlib/[0-9].[0-9] | head -n 1 | awk -F "/" '{print $7}')
+	fi
+}
+
+REMOVE(){
+	DIR=$(ls $BUILDDIR | grep hamlib)
+	cd ${BUILDDIR}/${DIR}
+	./configure
+	sudo make uninstall
+	sudo make clean
+}
