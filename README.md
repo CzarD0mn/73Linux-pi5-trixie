@@ -20,7 +20,9 @@ sudo raspi-config   # Advanced Options -> Wayland -> X11, then reboot
 sudo usermod -aG dialout,tty,plugdev,gpio "$USER"
 # log out / reboot
 
-git clone https://github.com/CzarD0mn/73Linux-pi5-trixie.git $HOME/73Linux
+git clone https://github.com/CzarD0mn/73Linux-pi5-trixie.git $HOME/73Linux-pi5-trixie
+bash $HOME/73Linux-pi5-trixie/bootstrap.sh
+# installer lives in $HOME/73Linux, not /
 bash $HOME/73Linux/73.sh
 ```
 
