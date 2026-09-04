@@ -79,12 +79,9 @@ INSTALL(){
 	PACKAGE=flamp
 	CLEANSOURCE
 	#determine latest FLAMP
-	AMPTAR=$(w1hkj_latest flamp) || return
-	AMPPKG=$(echo ${AMPTAR} | sed 's/.tar.gz//')
-
-	#download FLAMP
 	cd ${BUILDDIR} || return
-	wget --tries 2 --connect-timeout=60 https://www.w1hkj.org/files/flamp/$AMPTAR
+	AMPTAR=$(w1hkj_latest flamp) || return
+	AMPPKG=${AMPTAR%.tar.gz}
 	tar -zxvf ${AMPTAR}
 
 	#build FLAMP

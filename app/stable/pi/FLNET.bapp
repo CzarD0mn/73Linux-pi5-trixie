@@ -79,12 +79,9 @@ INSTALL(){
 	PACKAGE=flnet
 	CLEANSOURCE
 	#determine lastest FLNET
-	NETTAR=$(w1hkj_latest flnet) || return
-	NETPKG=$(echo ${NETTAR} | sed 's/.tar.gz//')
-
-	#download FLNET
 	cd ${BUILDDIR} || return
-	wget --tries 2 --connect-timeout=60 https://www.w1hkj.org/files/flnet/$NETTAR
+	NETTAR=$(w1hkj_latest flnet) || return
+	NETPKG=${NETTAR%.tar.gz}
 	tar -zxvf ${NETTAR}
 
 	#build FLNET
