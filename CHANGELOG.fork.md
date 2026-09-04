@@ -1,0 +1,1 @@
+# Fork changelog\n\n- 4.1.14  Restore Raspberry Pi 5 + Debian 13 Trixie support\n- Trixie package fallbacks (libfuse2t64, libasound2t64, php8.4)\n- Hamlib no longer pinned to 4.4\n- FLDIGI/FLRIG SourceForge fallback\n- Skip upstream self-replace that would drop Pi support\n
