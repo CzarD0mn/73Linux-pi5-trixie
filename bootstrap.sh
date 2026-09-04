@@ -1,6 +1,5 @@
 #!/bin/bash
-# Clone official 73Linux into $HOME/73Linux and overlay this fork's patches.
-# Never install or run from / (root of the filesystem).
+# Build the 73Linux install tree in the default user directory: $HOME/73Linux
 set -euo pipefail
 
 if [ "$(id -u)" -eq 0 ]; then
@@ -8,25 +7,16 @@ if [ "$(id -u)" -eq 0 ]; then
   exit 1
 fi
 
-DEST="${1:-$HOME/73Linux}"
-HERE="$(cd "$(dirname "$0")" && pwd)"
-OVERLAY="$HERE/overlay"
-
-case "$DEST" in
-  /|/.|//|/root|/root/*)
-    echo "Refusing destination $DEST"
-    echo "Install into a user directory such as $HOME/73Linux"
-    exit 1
-    ;;
-esac
-
-# Keep the install tree under the user's home.
-if [ "${DEST#"$HOME"/}" = "$DEST" ] && [ "$DEST" != "$HOME/73Linux" ]; then
-  echo "Destination must be inside your home directory."
-  echo "Using $HOME/73Linux instead of $DEST"
-  DEST="$HOME/73Linux"
+if [ -z "${HOME:-}" ] || [ "$HOME" = "/" ] || [ "$HOME" = "/root" ]; then
+  echo "HOME is '$HOME'. Refusing to install there."
+  echo "Log in as a normal user so HOME is /home/<you>"
+  exit 1
 fi
 
+DEST="$HOME/73Linux"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+
+echo "Install directory: $DEST"
 mkdir -p "$DEST"
 
 if [ ! -d "$DEST/.git" ] && [ ! -f "$DEST/73.sh" ]; then
@@ -34,20 +24,20 @@ if [ ! -d "$DEST/.git" ] && [ ! -f "$DEST/73.sh" ]; then
   git clone https://github.com/km4ack/73Linux.git "$DEST"
 fi
 
-echo "Copying Trixie / Pi 5 overlay from $HERE"
+echo "Applying Pi 5 / Trixie patches"
 mkdir -p "$DEST/bin" "$DEST/app/stable/pi"
 cp -a "$HERE/.pi5-trixie-fork" "$DEST/"
 cp -a "$HERE/PI5_TRIXIE.md" "$DEST/"
 cp -a "$HERE/bin/trixie-apt.sh" "$DEST/bin/"
 chmod +x "$DEST/bin/trixie-apt.sh"
 
-if [ -f "$OVERLAY/73.sh" ]; then
-  cp -a "$OVERLAY/73.sh" "$DEST/73.sh"
-  echo "  overlaid overlay/73.sh -> $DEST/73.sh"
+if [ -f "$HERE/73.sh" ]; then
+  cp -a "$HERE/73.sh" "$DEST/73.sh"
+  echo "  installed $DEST/73.sh"
 fi
 chmod +x "$DEST/73.sh"
 
-overlay_files=(
+patch_files=(
   changelog
   bin/set-enviroment.sh
   app/stable/pi/HAMLIB.bapp
@@ -60,19 +50,16 @@ overlay_files=(
   app/stable/pi/HAMRS.bapp
 )
 
-for rel in "${overlay_files[@]}"; do
-  if [ -f "$OVERLAY/$rel" ]; then
-    mkdir -p "$DEST/$(dirname "$rel")"
-    cp -a "$OVERLAY/$rel" "$DEST/$rel"
-    echo "  overlaid $rel"
-  elif [ -f "$HERE/$rel" ]; then
+for rel in "${patch_files[@]}"; do
+  if [ -f "$HERE/$rel" ]; then
     mkdir -p "$DEST/$(dirname "$rel")"
     cp -a "$HERE/$rel" "$DEST/$rel"
-    echo "  overlaid $rel"
+    echo "  patched $rel"
   fi
 done
 
 echo
-echo "Install tree is $DEST"
+echo "73Linux is in your user directory:"
+echo "  $DEST"
 echo "Run (not as root):"
 echo "  bash $DEST/73.sh"

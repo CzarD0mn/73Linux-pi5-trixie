@@ -22,7 +22,7 @@ sudo usermod -aG dialout,tty,plugdev,gpio "$USER"
 
 git clone https://github.com/CzarD0mn/73Linux-pi5-trixie.git $HOME/73Linux-pi5-trixie
 bash $HOME/73Linux-pi5-trixie/bootstrap.sh
-# installer lives in $HOME/73Linux, not /
+# 73Linux is installed to your user home, e.g. /home/pi/73Linux
 bash $HOME/73Linux/73.sh
 ```
 
