@@ -1,0 +1,19 @@
+version=4.1.14
+4.1.14  Unofficial Pi 5 / Debian 13 (Trixie) fork of km4ack/73Linux 4.1.13
+        Restore Raspberry Pi (aarch64) support dropped upstream in 4.1.9
+        Install tree is always $HOME/73Linux; do not run as root
+        Skip upstream self-replace when .pi5-trixie-fork is present
+        Add bin/trixie-apt.sh for Trixie package name fallbacks
+          libfuse2 -> libfuse2t64
+          libasound2 -> libasound2t64
+          libgtk-3-0 / libglib2.0-0 t64 names
+          php8.2 -> php8.4 (or php8.3 / php)
+          swig4.0 -> swig
+        W1HKJ downloads use https://www.w1hkj.org (www.w1hkj.com 404s)
+        FLDIGI, FLRIG, FLAMP, FLMSG, FLNET, FLWRAP, flxmlrpc
+        FLRIG falls back to Debian flrig package if the source build fails
+        Hamlib no longer pinned to 4.4; resolve current SourceForge release
+        CHIRP uses libfuse2t64/fuse3 on Trixie
+        set-enviroment.sh is user-space only (no sudo)
+        Recognize debian / raspios / Trixie and Raspberry Pi 5 device-tree
+        bootstrap.sh overlays patches onto official km4ack/73Linux
