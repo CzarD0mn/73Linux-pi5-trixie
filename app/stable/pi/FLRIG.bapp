@@ -1,0 +1,142 @@
+BAPP=4.0
+ID=FLRIG
+Name=flrig
+Comment='Rig Control GUI'
+Ver=Update:2.0.12
+localVer=0
+
+INSTALL(){
+
+	CLEANSOURCE(){
+		if [ -z "${PACKAGE:-}" ]; then
+			return
+		fi
+		find "${HOME}/.bap-source-files" -maxdepth 1 -type d -name "${PACKAGE}*" -exec rm -rf {} + 2>/dev/null || true
+	}
+
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	apt_flrig_deps() {
+		local pkgs=(
+			build-essential autoconf automake pkg-config
+			libfltk1.3-dev libfltk1.3
+			libxft-dev libxinerama-dev libxcursor-dev
+			libsndfile1-dev libsamplerate0-dev portaudio19-dev
+			libpulse-dev libusb-1.0-0-dev texinfo libudev-dev
+		)
+		if apt-cache show libjpeg62-turbo-dev >/dev/null 2>&1; then
+			pkgs+=(libjpeg62-turbo-dev)
+		elif apt-cache show libjpeg62-dev >/dev/null 2>&1; then
+			pkgs+=(libjpeg62-dev)
+		else
+			pkgs+=(libjpeg-dev)
+		fi
+		if declare -F bap_apt_install >/dev/null; then
+			bap_apt_install "${pkgs[@]}"
+		else
+			sudo apt-get install -y "${pkgs[@]}"
+		fi
+	}
+
+	download_w1hkj_src() {
+		local name="$1"
+		local tarball
+		if declare -F bap_download_w1hkj >/dev/null; then
+			tarball=$(bap_download_w1hkj "$name") || return 1
+			echo "$tarball"
+			return 0
+		fi
+		tarball=$(curl -fsSL --max-time 20 "https://www.w1hkj.org/files/${name}/" \
+			| grep -oE "${name}-[0-9][0-9.]*\.tar\.gz" | sort -V | tail -1)
+		[ -n "$tarball" ] || return 1
+		wget --tries 2 --connect-timeout=60 "https://www.w1hkj.org/files/${name}/${tarball}"
+		echo "$tarball"
+	}
+
+	install_from_apt() {
+		echo "Falling back to Debian flrig package"
+		sudo apt-get install -y flrig
+	}
+
+	##################################
+	#	DEPENDS
+	##################################
+	apt_flrig_deps
+
+	mkdir -p "${BUILDDIR}"
+	cd "${BUILDDIR}" || return 1
+
+	FLX=$(ldconfig -p | grep flxmlrpc || true)
+	if [ -z "$FLX" ]; then
+		FLXM=$(download_w1hkj_src flxmlrpc) || FLXM=""
+		if [ -n "$FLXM" ]; then
+			tar -zxvf "${FLXM}"
+			XMPKG=${FLXM%.tar.gz}
+			cd "${BUILDDIR}/${XMPKG}" || return 1
+			./configure --prefix=/usr/local --enable-static
+			make -j "${BAPCORE:-$(nproc)}"
+			sudo make install
+			sudo ldconfig
+			cd "${BUILDDIR}"
+			rm -f "${BUILDDIR}/${FLXM}"
+		else
+			echo "flxmlrpc source not found; FLRIG can still build without it"
+		fi
+	fi
+
+	PACKAGE=flrig
+	CLEANSOURCE
+	cd "${BUILDDIR}" || return 1
+
+	RIGTAR=$(download_w1hkj_src flrig) || RIGTAR=""
+	if [ -z "$RIGTAR" ] || [ ! -f "$RIGTAR" ]; then
+		echo "Could not download flrig source from W1HKJ"
+		install_from_apt
+		return 0
+	fi
+
+	tar -zxvf "${RIGTAR}"
+	RIGPKG=${RIGTAR%.tar.gz}
+	cd "${BUILDDIR}/${RIGPKG}" || { install_from_apt; return 0; }
+
+	if ! ./configure --prefix=/usr/local --enable-static; then
+		echo "configure failed"
+		install_from_apt
+		return 0
+	fi
+	if ! make -j "${BAPCORE:-$(nproc)}"; then
+		echo "compile failed"
+		install_from_apt
+		return 0
+	fi
+	sudo make install
+	sudo ldconfig
+	rm -f "${BUILDDIR}/${RIGTAR}"
+}
+
+REMOVE(){
+	if [ -n "${BUILDDIR:-}" ]; then
+		DIR=$(ls "$BUILDDIR" 2>/dev/null | grep '^flrig' | head -1 || true)
+		if [ -n "$DIR" ] && [ -d "${BUILDDIR}/${DIR}" ]; then
+			cd "${BUILDDIR}/${DIR}" && sudo make uninstall || true
+		fi
+	fi
+	sudo apt-get remove -y flrig 2>/dev/null || true
+	sudo rm -f /usr/local/bin/flrig /usr/local/share/applications/flrig.desktop
+}
+
+VERSION(){
+	if ! hash flrig 2>/dev/null; then
+		CURRENT=0
+	else
+		CURRENT=$(flrig --version 2>/dev/null | head -1 | awk '{print $NF}')
+	fi
+	NEWVER=$(curl --max-time 20 -fsSL https://www.w1hkj.org/files/flrig/ 2>/dev/null \
+		| grep -oE 'flrig-[0-9][0-9.]*\.tar\.gz' | sort -V | tail -1 | sed 's/flrig-//;s/\.tar\.gz//')
+	if [ -z "$NEWVER" ]; then
+		NEWVER=2.0.12
+	fi
+}

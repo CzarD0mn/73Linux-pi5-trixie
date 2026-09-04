@@ -72,15 +72,24 @@ bap_apt_install() {
 
 bap_download_w1hkj() {
 	local name="$1"
-	local tarball page
-	page=$(curl -fsSL "http://www.w1hkj.com/files/${name}/" 2>/dev/null || true)
-	tarball=$(echo "$page" | grep -oE "${name}-[0-9][^\"']+\.tar\.gz" | head -1)
+	local tarball page host
+	# www.w1hkj.com no longer hosts the file index (HTTP 404 / wrong site).
+	for host in "https://www.w1hkj.org/files/${name}/" "https://www.w1hkj.com/files/${name}/"; do
+		page=$(curl -fsSL --max-time 20 "$host" 2>/dev/null || true)
+		tarball=$(echo "$page" | grep -oE "${name}-[0-9][0-9.]*\.tar\.gz" | sort -V | tail -1)
+		if [ -n "$tarball" ]; then
+			wget --tries 2 --connect-timeout=60 "${host}${tarball}" || continue
+			echo "$tarball"
+			return 0
+		fi
+	done
+	tarball=$(curl -fsSL --max-time 20 "https://sourceforge.net/projects/fldigi/files/${name}/" \
+		| grep -oE "${name}-[0-9][0-9.]*\.tar\.gz" | sort -V | tail -1)
 	if [ -n "$tarball" ]; then
-		wget --tries 2 --connect-timeout=60 "http://www.w1hkj.com/files/${name}/${tarball}" && echo "$tarball" && return 0
-	fi
-	tarball=$(curl -fsSL "https://sourceforge.net/projects/fldigi/files/${name}/" | grep -oE "${name}-[0-9][^\"]+\.tar\.gz" | head -1)
-	if [ -n "$tarball" ]; then
-		wget --tries 2 --connect-timeout=60 -O "$tarball" "https://sourceforge.net/projects/fldigi/files/${name}/${tarball}/download" && echo "$tarball" && return 0
+		wget --tries 2 --connect-timeout=60 -O "$tarball" \
+			"https://sourceforge.net/projects/fldigi/files/${name}/${tarball}/download"
+		echo "$tarball"
+		return 0
 	fi
 	echo "ERROR: could not locate source for $name" >&2
 	return 1
