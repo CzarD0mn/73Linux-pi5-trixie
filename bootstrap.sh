@@ -16,19 +16,28 @@ fi
 DEST="$HOME/73Linux"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
+# shellcheck disable=SC1091
+source "${HERE}/bin/pins.sh"
+
 echo "Install directory: $DEST"
 mkdir -p "$DEST"
 
 if [ ! -d "$DEST/.git" ] && [ ! -f "$DEST/73.sh" ]; then
-  echo "Cloning km4ack/73Linux into $DEST"
-  git clone https://github.com/km4ack/73Linux.git "$DEST"
+  echo "Cloning km4ack/73Linux at pinned commit ${BAP_UPSTREAM_SHA}"
+  git clone --filter=blob:none "$BAP_UPSTREAM_REPO" "$DEST"
+  git -C "$DEST" fetch --depth=1 origin "$BAP_UPSTREAM_SHA"
+  git -C "$DEST" checkout --force "$BAP_UPSTREAM_SHA"
+elif [ -d "$DEST/.git" ]; then
+  echo "Existing git tree at $DEST — not resetting it."
+  echo "Pinned upstream SHA is ${BAP_UPSTREAM_SHA}"
 fi
 
 echo "Applying Pi 5 / Trixie patches"
-mkdir -p "$DEST/bin" "$DEST/app/stable/pi"
+mkdir -p "$DEST/bin" "$DEST/app/stable/pi" "$DEST/data/checksums"
 cp -a "$HERE/.pi5-trixie-fork" "$DEST/"
 cp -a "$HERE/PI5_TRIXIE.md" "$DEST/"
 cp -a "$HERE/bin/trixie-apt.sh" "$DEST/bin/"
+cp -a "$HERE/bin/pins.sh" "$DEST/bin/"
 chmod +x "$DEST/bin/trixie-apt.sh"
 
 if [ -f "$HERE/73.sh" ]; then
@@ -39,6 +48,7 @@ chmod +x "$DEST/73.sh"
 
 patch_files=(
   changelog
+  CHANGELOG.fork.md
   bin/set-enviroment.sh
   app/stable/pi/HAMLIB.bapp
   app/stable/pi/CHIRP.bapp
