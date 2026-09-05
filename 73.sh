@@ -2,8 +2,6 @@
 
 # Localization can do weird things.
 # See https://github.com/km4ack/73Linux/issues/144 and https://github.com/km4ack/73Linux/issues/71.
-# 73Linux is not translated in any other languages and does change behaviour based on locale settings.
-# Forcing to use the default locale prevents any of those localization issues.
 export LC_ALL=C
 
 echo "#######################################"
@@ -13,10 +11,9 @@ echo "#######################################"
 #variables
 BAPDIR="$(cd "$(dirname "$0")" && pwd)"
 BAPSYSINFO=${BAPDIR}/cache/cpu.bap
-BAPPVER=$(cat ${BAPDIR}/changelog | head -1 | sed 's/version=//')
+BAPPVER=$(head -1 "${BAPDIR}/changelog" | sed 's/version=//')
 LOGO=${BAPDIR}/data/logo.png
 TEMPCRON=/run/user/$UID/tempcron.txt
-
 
 APPLIST=${BAPDIR}/cache/app-list.bap
 APPPATH=${BAPDIR}/app/stable/
@@ -27,6 +24,11 @@ export BUILDDIR
 export LOGO
 export BAPDIR
 
+if [ -f "${BAPDIR}/bin/pins.sh" ]; then
+	# shellcheck disable=SC1091
+	source "${BAPDIR}/bin/pins.sh"
+fi
+
 # Trixie / Pi 5 package name helpers
 if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
 	# shellcheck disable=SC1091
@@ -34,89 +36,36 @@ if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
 	export -f bap_pkg_available bap_resolve_pkg bap_apt_install bap_download_w1hkj 2>/dev/null || true
 fi
 
-if [ ! -d ${BAPDIR}/cache ]; then
-	mkdir ${BAPDIR}/cache
+if [ ! -d "${BAPDIR}/cache" ]; then
+	mkdir "${BAPDIR}/cache"
 fi
 
 echo "#############################"
 echo "Checking for 73 Linux Updates"
 echo "#############################"
-if [ -f "${BAPDIR}/.pi5-trixie-fork" ]; then
-	echo "Pi 5 / Trixie fork detected - skipping upstream self-replace"
-	LATEST=0
-	CURRENT=1
-else
-LATEST=$(curl -s https://raw.githubusercontent.com/km4ack/73Linux/master/changelog | head -1 | sed 's/version=//')
-CURRENT=$(grep version ${BAPDIR}/changelog | head -1 | sed 's/version=//')
+# Never self-replace this fork with unpinned upstream.
+if [ ! -f "${BAPDIR}/.pi5-trixie-fork" ]; then
+	echo "ERROR: missing .pi5-trixie-fork marker."
+	echo "Refusing to fetch or replace the install tree from upstream."
+	echo "Restore the marker file from the Pi 5 / Trixie fork and re-run."
+	exit 1
 fi
+echo "Pi 5 / Trixie fork detected — skipping upstream self-replace and /app pull"
+LATEST=0
+CURRENT=1
 
-if (($(echo "${LATEST} ${CURRENT}" | awk '{print ($1 > $2)}'))); then
-	echo "#################################"
-	echo "A newer version of 73 Linux Found"
-	echo "Current version is $CURRENT"
-	echo "Latest version is $LATEST"
-	echo "############################"
-	yad --width=300 --height=150 --fixed --text-align=center --center --title="73 Linux" \
-		--image ${LOGO} --window-icon=${LOGO} --image-on-top --separator="|" --item-separator="|" \
-		--text "Updated version of 73 Linux found.\rInstalled - v${CURRENT}\rLatest - v${LATEST}\rWould you like to update?" \
-		--button="Yes":2 \
-		--button="No":3
-BUT=$?
-	if [ $BUT = 252 ]; then
-		exit
-	elif [ $BUT = 2 ]; then
-		wget -q --tries=5 --timeout=10 --spider http://google.com
-		if [ $? = 0 ]; then
-			cd $HOME
-			rm -rf 73Linux
-			git clone https://github.com/km4ack/73Linux.git
-			yad --width=300 --height=150 --fixed --text-align=center --center --title="73 Linux" \
-				--image ${LOGO} --window-icon=${LOGO} --image-on-top --separator="|" --item-separator="|" \
-				--text "Update complete.\rPlease restart 73 Linux" \
-				--button=gtk-ok
-		exit
-		else
-			yad --center --timeout=3 --timeout-indicator=top --no-buttons --text="You are not connected to the internet"
-			exit
-		fi
+echo "73 Linux fork in use. Version ${BAPPVER} (upstream app pull disabled)"
 
-	fi
-
-else
-	echo "73 Linux up to date. Version $CURRENT installed"
-fi
-
-echo "Checking for updated bap files"
-CUR=$(grep version ${BAPDIR}/app/.bap-version | sed 's/version=//')
-LATEST=$(curl -s https://raw.githubusercontent.com/km4ack/73Linux/master/app/.bap-version | grep version | head -1 | sed 's/version=//')
-if (($(echo "${LATEST} ${CUR}" | awk '{print ($1 > $2)}'))); then
-	echo "#######################################"
-	echo "#    Downloading latest bap files     #"
-	echo "#######################################"
-	cd /run/user/$UID
-	git init 73Linux
-	cd 73Linux
-	git remote add -f origin https://github.com/km4ack/73Linux.git
-	git config pull.ff only
-	git config core.sparseCheckout true
-	echo "/app" >> .git/info/sparse-checkout
-	git pull origin master
-	cp -r /run/user/$UID/73Linux/app ${BAPDIR}/
-	rm -rf /run/user/$UID/73Linux
-else
-	echo "bap files up to date"
-fi
-
-cd ${BAPDIR}
+cd "${BAPDIR}"
 
 #####################################
 #	Verify not run as root
 #####################################
-if [ `whoami` = 'root' ]; then
+if [ "$(whoami)" = 'root' ]; then
 	echo "ROOT DETECTED. Do not run 73.sh as root or with sudo."
 	if hash yad 2>/dev/null; then
 		yad --form --width=500 --text-align=center --center --title="73 Linux" --text-align=center \
-			--image ${LOGO} --window-icon=${LOGO} --image-on-top --separator="|" --item-separator="|" \
+			--image "${LOGO}" --window-icon="${LOGO}" --image-on-top --separator="|" --item-separator="|" \
 			--text="<b>ROOT DETECTED</b>\rDon't run this script as root. Restart without sudo" \
 			--button=gtk-close
 	fi
@@ -151,27 +100,25 @@ else
 	echo "Install yad jq bc git curl wget yourself if they are missing."
 fi
 
-touch $HOME/.config/KM4ACK
+mkdir -p "$HOME/.config"
+touch "$HOME/.config/KM4ACK"
 
 #first run? welcome!
 if [ ! -f "$BAPSYSINFO" ]; then
     
-    # Detect if the script is part of a full source checkout or standalone instead.
     if [ ! -f "${BAPDIR}/app/stable/autohotspot" ]; then
         echo -e "\n Missing important stuff. Can't continue. "
+        echo "Run bootstrap.sh from the fork so the pinned km4ack tree is present."
         exit 1
     fi
 
-    #create source repo
-    mkdir -p ${HOME}/.bap-source-files
+    mkdir -p "${HOME}/.bap-source-files"
 
-    #set the station call sign
     N0CALL=$(yad --form --width=420 --text-align=center --title="73 Linux" --center \
         --title="Amature Radio Callsign Required" --center --image="$LOGO" \
         --field="Call Sign" \
         --field="<b>Required</b>":LBL)
 
-    #input validate
     TMPCALL=$(echo "${N0CALL^^}" | sed 's/||//' | awk '{gsub(/[^[:alnum:][:space:]]/,"?")} 1')
 
     if echo "$TMPCALL" | grep -q "?";then
@@ -179,36 +126,31 @@ if [ ! -f "$BAPSYSINFO" ]; then
         exit 1
     fi
 
-    #blank check
-    if [ $N0CALL = "||" ] || [ $N0CALL = "" ]; then
+    if [ "$N0CALL" = "||" ] || [ -z "$N0CALL" ]; then
         echo -e "\n ERROR: CRITICAL: need a radio call to operate, nothing heard QRZ?"
         exit 1
-
     else
-        #save
         MYCALL=$TMPCALL
         BAPCALL=$TMPCALL
-        touch ${BAPDIR}/MYCALL.$MYCALL
-        touch ${BAPDIR}/cache/MYCALL.$MYCALL
+        touch "${BAPDIR}/MYCALL.${MYCALL}"
+        touch "${BAPDIR}/cache/MYCALL.${MYCALL}"
         echo "###################################"
         echo "#Registered $MYCALL to this host"
         echo "###################################"
         wait
     fi
 
-    # Setup the other CPU data we will need make it global for this session
-    if [ -f ${BAPDIR}/bin/set-enviroment.sh ]; then
+    if [ -f "${BAPDIR}/bin/set-enviroment.sh" ]; then
         echo "###################################"
         echo "#Detected New System for Install"
         echo "###################################"
         echo -e "Hostname - $(hostname -s)"
-        ${BAPDIR}/bin/set-enviroment.sh
+        "${BAPDIR}/bin/set-enviroment.sh"
     else
             echo -e "\n ERROR: CRITICAL: check integrity of package."
             exit 1
     fi
 
-    # Show once dialog
     yad --form --width=420 --height=200 --fixed --center --title="Welcome ${MYCALL}!" --image="$LOGO"  \
     --image-on-top --text-align=fill --button=gtk-ok --text="\n          <b>${MYCALL} DE KM4ACK!</b>\r        Welcome to\r
                     <b>73 Linux</b>\n
@@ -218,46 +160,31 @@ if [ ! -f "$BAPSYSINFO" ]; then
 	    -Press ok to scan the system
 	     and begin the build process"
 
-    #fi first run, wait
     wait
 
-#Give option to load community apps. Call config script
 else
-	${BAPDIR}/bin/config.sh
+	"${BAPDIR}/bin/config.sh"
 fi
 
-COMMUNITY_CK=$(ls -a ${BAPDIR}/cache/ | grep .community)
-if [ -z $COMMUNITY_CK ]; then
+COMMUNITY_CK=$(ls -a "${BAPDIR}/cache/" | grep -F .community || true)
+if [ -z "$COMMUNITY_CK" ]; then
 	echo "Community apps excluded"
 else
 	echo "Community Apps included"
-	rm ${BAPDIR}/cache/.community
+	rm -f "${BAPDIR}/cache/.community"
 fi
 
-#set up variables for use globally here
-BAPARCH=$(echo $(sed '1q;d' $BAPSYSINFO))
-BAPCORE=$(echo $(sed '2q;d' $BAPSYSINFO))
-BAPCPU=$(echo $(sed '3q;d' $BAPSYSINFO))
-BAPDIST=$(echo $(sed '4q;d' $BAPSYSINFO))
-BAPSRC=$(echo ${HOME}/.bap-source-files)
-echo $BAPDIR > $BAPINSTALL
-BAPCALL=$(ls ${BAPDIR}/cache | grep MYCALL.* | sed 's/MYCALL.//')
+BAPARCH=$(sed '1q;d' "$BAPSYSINFO")
+BAPCORE=$(sed '2q;d' "$BAPSYSINFO")
+BAPCPU=$(sed '3q;d' "$BAPSYSINFO")
+BAPDIST=$(sed '4q;d' "$BAPSYSINFO")
+BAPSRC="${HOME}/.bap-source-files"
+echo "$BAPDIR" > "$BAPINSTALL"
+BAPCALL=$(ls "${BAPDIR}/cache" | grep MYCALL.* | sed 's/MYCALL.//' | head -1)
 MYCALL=$BAPCALL
 CALL=$BAPCALL
 
-#LOAD_FILES=$(echo $BAPCPU | grep arm)
-#Determine if to include community apps
-#if [ -z "$LOAD_FILES" ] && [ -n "$COMMUNITY_CK" ]; then
-#	APPSFILES="${BAPDIR}/app/stable/x86_64/*.bapp ${BAPDIR}/app/community/x86_64/*.bapp"
-#elif [ -z $LOAD_FILES ]; then
-#	APPSFILES="${BAPDIR}/app/stable/x86_64/*.bapp"
-#elif [ -n $LOAD_FILES ] && [ -n "$COMMUNITY_CK" ]; then
-#	APPSFILES="${BAPDIR}/app/stable/pi/*.bapp ${BAPDIR}/app/community/pi/*.bapp"
-#elif [ -n $LOAD_FILES ]; then
-#	APPSFILES="${BAPDIR}/app/stable/pi/*.bapp"
-#fi
-
-LOAD_FILES=$(lscpu | grep Architecture: | awk '{print $2}')
+LOAD_FILES=$(lscpu | awk '/Architecture:/ {print $2}')
 
 case $LOAD_FILES in
 	armv7l)
@@ -295,19 +222,16 @@ export APPSFILES
 export TEMPCRON
 export LOGO
 
-#check for updates
-${BAPDIR}/bin/app-check.sh
+"${BAPDIR}/bin/app-check.sh"
 wait
 
-   #jump to uninstall
-UNINSTALL_CK=$(ls -a ${BAPDIR}/cache/ | grep .remove)
-   if [ -n "$UNINSTALL_CK" ]; then
-	rm ${BAPDIR}/cache/.remove
-	${BAPDIR}/bin/remove.sh
+UNINSTALL_CK=$(ls -a "${BAPDIR}/cache/" | grep -F .remove || true)
+if [ -n "$UNINSTALL_CK" ]; then
+	rm -f "${BAPDIR}/cache/.remove"
+	"${BAPDIR}/bin/remove.sh"
 	wait
 	exit
-   fi
+fi
 
-#launch menu
-${BAPDIR}/bin/menu.sh
+"${BAPDIR}/bin/menu.sh"
 wait

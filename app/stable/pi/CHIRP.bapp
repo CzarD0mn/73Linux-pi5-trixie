@@ -7,20 +7,46 @@ localVer=0
 
 
 INSTALL(){
-	cd ${BAPSRC} || return
-	sudo apt install -y libfuse2t64 fuse3 || sudo apt install -y libfuse2 fuse3
-	CHIRPDATE=$(curl -s https://github.com/goldstar611/chirp-appimage | grep "releases/tag/" | sed 's|.*releases/tag/||;s|">||')
+	cd "${BAPSRC}" || return
+	if [ -f "${BAPDIR}/bin/pins.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/pins.sh"
+	fi
+	sudo apt install -y libfuse2t64 fuse3 jq || sudo apt install -y libfuse2 fuse3 jq
 
-	if [ `getconf LONG_BIT` = '32' ]; then
-	LINK="https://github.com/goldstar611/chirp-appimage/releases/download/$CHIRPDATE/Chirp-next-$CHIRPDATE-armhf.AppImage"
-	else
-	LINK="https://github.com/goldstar611/chirp-appimage/releases/download/$CHIRPDATE/Chirp-next-$CHIRPDATE-aarch64.AppImage"
+	# Use the GitHub Releases API instead of scraping HTML.
+	API_JSON=$(curl -fsSL --max-time 30 \
+		-H "Accept: application/vnd.github+json" \
+		https://api.github.com/repos/goldstar611/chirp-appimage/releases/latest) || {
+		echo "ERROR: could not query GitHub Releases API for chirp-appimage"
+		return 1
+	}
+	CHIRPDATE=$(printf '%s' "$API_JSON" | jq -r '.tag_name // empty')
+	if ! bap_safe_token "$CHIRPDATE" 2>/dev/null; then
+		case "$CHIRPDATE" in
+			''|*[!A-Za-z0-9._-]*) echo "ERROR: unexpected CHIRP tag '$CHIRPDATE'"; return 1 ;;
+		esac
 	fi
 
-	wget --tries 2 --connect-timeout=60 $LINK
-	CHIRP=$(ls | grep Chirp-next)
-	sudo mv $CHIRP /usr/local/bin/chirp
-	sudo chmod +x /usr/local/bin/chirp
+	if [ "$(getconf LONG_BIT)" = '32' ]; then
+		ARCH=armhf
+	else
+		ARCH=aarch64
+	fi
+	ASSET="Chirp-next-${CHIRPDATE}-${ARCH}.AppImage"
+	LINK=$(printf '%s' "$API_JSON" | jq -r --arg n "$ASSET" \
+		'.assets[] | select(.name==$n) | .browser_download_url' | head -1)
+	case "$LINK" in
+		https://github.com/goldstar611/chirp-appimage/releases/download/*) ;;
+		*) echo "ERROR: refusing download URL: $LINK"; return 1 ;;
+	esac
+
+	wget --tries 2 --connect-timeout=60 -O "$ASSET" "$LINK" || return 1
+	if [ -n "${BAP_CHECKSUM_DIR:-}" ] && [ -f "${BAP_CHECKSUM_DIR}/${ASSET}.sha256" ]; then
+		sha256sum -c "${BAP_CHECKSUM_DIR}/${ASSET}.sha256" || return 1
+	fi
+	sudo mv "$ASSET" /usr/local/bin/chirp
+	sudo chmod 0755 /usr/local/bin/chirp
 
 cat >chirp.desktop <<EOF
 [Desktop Entry]
@@ -40,9 +66,10 @@ EOF
 
 VERSION(){
 	lastrelease() {
-		git ls-remote --tags https://github.com/goldstar611/chirp-appimage | cut -d/ -f3- | tail -n1
+		curl -fsSL --max-time 20 -H "Accept: application/vnd.github+json" \
+			https://api.github.com/repos/goldstar611/chirp-appimage/releases/latest \
+			| jq -r '.tag_name // empty'
 	 }
-
 if ! hash chirp 2>/dev/null; then
 	CURRENT=0
 	NEWVER=$(lastrelease)
@@ -50,11 +77,11 @@ if ! hash chirp 2>/dev/null; then
 else
 	echo "standby....this takes a few seconds"
 	CP=$(chirp --version)
-	CURRENT=$(echo ${CP} | awk '{ print $2 }' | sed 's/daily-//')
+	CURRENT=$(echo "${CP}" | awk '{ print $2 }' | sed 's/daily-//')
 	NEWVER=$(lastrelease)
 fi
 }
 
 REMOVE(){
-	sudo rm /usr/local/bin/chirp /usr/share/applications/chirp.desktop
+	sudo rm -f /usr/local/bin/chirp /usr/share/applications/chirp.desktop
 }

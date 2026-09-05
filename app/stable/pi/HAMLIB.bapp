@@ -7,57 +7,70 @@ localVer=0
 
 
 INSTALL(){
+	if [ -f "${BAPDIR}/bin/pins.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/pins.sh"
+	fi
+
 	CLEANSOURCE(){
-		PACKAGE=$(ls ${HOME}/.bap-source-files | grep ${PACKAGE})
-		echo "package is $PACKAGE"
-		if [ -z $PACKAGE ]; then
-			echo "no old package found"
-		else
-			if [ -d ${HOME}/.bap-source-files/${PACKAGE} ]; then
-		   		echo "Dir to remove is ${HOME}/.bap-source-files/${PACKAGE}/"
-		   		rm -rf ${HOME}/.bap-source-files/${PACKAGE}/
-			fi
+		if declare -F bap_clean_source_prefix >/dev/null; then
+			bap_clean_source_prefix hamlib
+			return
 		fi
+		find "${HOME}/.bap-source-files" -maxdepth 1 -mindepth 1 -type d -name 'hamlib*' -exec rm -rf {} + 2>/dev/null || true
 	}
 
     PACKAGE=hamlib
     CLEANSOURCE
     sudo apt install -y libusb-1.0-0 libusb-1.0-0-dev swig libxml2-dev python3-dev python3-setuptools
     pyver=$(python3 -V | awk '{print $2}' | awk -F. '{print $1"."$2}')
-    cd ${BUILDDIR} || return
-    NEWRIG=$(curl -s https://sourceforge.net/projects/hamlib/files/latest/download |
-        grep -oE 'hamlib/[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n 1 | awk -F "/" '{print $2}')
-    if [ -z "$NEWRIG" ]; then
-        NEWRIG=4.6.2
+    cd "${BUILDDIR}" || return
+    NEWRIG="${BAP_HAMLIB_VERSION:-4.6.2}"
+    if ! printf '%s' "$NEWRIG" | grep -Eq '^[0-9]+(\.[0-9]+)+$'; then
+        echo "ERROR: invalid hamlib version token $NEWRIG"
+        return 1
     fi
-    HAMLIBLINK=https://sourceforge.net/projects/hamlib/files/hamlib/${NEWRIG}/hamlib-${NEWRIG}.tar.gz
-    wget --tries 2 --connect-timeout=60 ${HAMLIBLINK} || wget --tries 2 --connect-timeout=60 "${HAMLIBLINK}/download" -O hamlib-${NEWRIG}.tar.gz
-    tar -xzf hamlib-${NEWRIG}.tar.gz
-    rm -f hamlib*.tar.gz
-    cd hamlib-${NEWRIG} || return
+    HAMLIBLINK="https://sourceforge.net/projects/hamlib/files/hamlib/${NEWRIG}/hamlib-${NEWRIG}.tar.gz"
+    wget --tries 2 --connect-timeout=60 -O "hamlib-${NEWRIG}.tar.gz" "${HAMLIBLINK}" \
+        || wget --tries 2 --connect-timeout=60 -O "hamlib-${NEWRIG}.tar.gz" "${HAMLIBLINK}/download"
+    if ! gzip -t "hamlib-${NEWRIG}.tar.gz" 2>/dev/null; then
+        echo "ERROR: hamlib tarball is not valid gzip"
+        rm -f "hamlib-${NEWRIG}.tar.gz"
+        return 1
+    fi
+    if [ -n "${BAP_CHECKSUM_DIR:-}" ] && [ -f "${BAP_CHECKSUM_DIR}/hamlib-${NEWRIG}.tar.gz.sha256" ]; then
+        sha256sum -c "${BAP_CHECKSUM_DIR}/hamlib-${NEWRIG}.tar.gz.sha256" || return 1
+    fi
+    tar -xzf "hamlib-${NEWRIG}.tar.gz"
+    rm -f hamlib-*.tar.gz
+    cd "hamlib-${NEWRIG}" || return
 
     ./configure --with-xml-support --with-python-binding PYTHON_VERSION=$pyver || ./configure --with-xml-support
-    make -j $BAPCORE
+    make -j "$BAPCORE"
     sudo make install
     sudo ldconfig
     sudo make clean
-    rm ${BUILDDIR}/*.gz
 }
 
 VERSION(){
 	if ! hash rigctl 2>/dev/null; then
 		CURRENT=0
-		NEWVER=$(curl --max-time 20 -s https://sourceforge.net/projects/hamlib/files/latest/download | grep -o https://downloads.sourceforge.net/project/hamlib/hamlib/[0-9].[0-9] | head -n 1 | awk -F "/" '{print $7}')
 	else
 		CURRENT=$(rigctl --version | awk '{print $3}')
-		NEWVER=$(curl --max-time 20 -s https://sourceforge.net/projects/hamlib/files/latest/download | grep -o https://downloads.sourceforge.net/project/hamlib/hamlib/[0-9].[0-9] | head -n 1 | awk -F "/" '{print $7}')
 	fi
+	if [ -f "${BAPDIR}/bin/pins.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/pins.sh"
+	fi
+	NEWVER="${BAP_HAMLIB_VERSION:-4.6.2}"
 }
 
 REMOVE(){
-	DIR=$(ls $BUILDDIR | grep hamlib)
-	cd ${BUILDDIR}/${DIR}
-	./configure
-	sudo make uninstall
-	sudo make clean
+	DIR=$(find "$BUILDDIR" -maxdepth 1 -mindepth 1 -type d -name 'hamlib*' | head -1)
+	if [ -n "$DIR" ] && [ -d "$DIR" ]; then
+		cd "$DIR" || return
+		./configure
+		sudo make uninstall
+		sudo make clean
+	fi
 }
