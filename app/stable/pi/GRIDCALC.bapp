@@ -1,0 +1,37 @@
+BAPP=4.0
+ID=GRIDCALC
+Name=GridCalc
+Comment='Grid Calculation'
+Ver=1
+localVer=1
+
+
+INSTALL(){
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	# "wwl" is in Debian (main); keep apt instead of the script's self-download
+	# from www.db.net, which is outside Debian and often unreachable.
+	bap_apt_install wwl bc yad || return 1
+	mkdir -p "${HOME}/bin"
+	cd "${HOME}/bin" || return 1
+	wget --tries 2 --connect-timeout=60 https://raw.githubusercontent.com/km4ack/pi-scripts/master/grid-calc || return 1
+	chmod +x "$HOME/bin/grid-calc"
+}
+
+
+VERSION(){
+	if [ -f ${HOME}/bin/grid-calc ]; then
+		CURRENT=1
+		NEWVER=1
+	else
+		CURRENT=0
+		NEWVER=1
+	fi
+}
+
+REMOVE(){
+	rm ${HOME}/bin/grid-calc
+}

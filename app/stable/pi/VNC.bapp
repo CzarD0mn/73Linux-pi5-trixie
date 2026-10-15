@@ -1,0 +1,46 @@
+BAPP=4.0
+ID=VNC
+Name=VNC
+Comment='VNC Viewer'
+Ver=6.22.826
+localVer=6.22.826
+
+
+INSTALL(){
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	# The pinned VNC-Viewer-6.22.826-Linux-ARM.deb URL is gone (404) and the
+	# RealVNC download page blocks scripts. Raspberry Pi OS Trixie ships
+	# realvnc-vnc-viewer in archive.raspberrypi.com; plain Debian gets
+	# TigerVNC instead.
+	if bap_pkg_available realvnc-vnc-viewer; then
+		sudo apt-get install -y realvnc-vnc-viewer
+	elif bap_pkg_available tigervnc-viewer; then
+		echo "realvnc-vnc-viewer not in apt sources (not Raspberry Pi OS?); installing tigervnc-viewer"
+		sudo apt-get install -y tigervnc-viewer
+	else
+		echo "ERROR: no VNC viewer package available" >&2
+		return 1
+	fi
+}
+
+
+VERSION(){
+	PKG=realvnc-vnc-viewer
+	dpkg -s "$PKG" >/dev/null 2>&1 || PKG=tigervnc-viewer
+	if ! hash vncviewer 2>/dev/null; then
+		CURRENT=0
+	else
+		CURRENT=$(dpkg-query -W -f='${Version}' "$PKG" 2>/dev/null | sed 's/[-+].*//')
+		[ -z "$CURRENT" ] && CURRENT=1
+	fi
+	NEWVER=$(apt-cache policy "$PKG" 2>/dev/null | awk '/Candidate:/{print $2}' | sed 's/[-+].*//')
+	{ [ -z "$NEWVER" ] || [ "$NEWVER" = "(none)" ]; } && NEWVER=$CURRENT
+}
+
+REMOVE(){
+	sudo apt-get remove -y realvnc-vnc-viewer tigervnc-viewer 2>/dev/null || true
+}

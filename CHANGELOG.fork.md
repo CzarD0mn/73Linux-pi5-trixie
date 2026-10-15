@@ -65,3 +65,33 @@ bash ~/73Linux/73.sh
 
 Original project: Jason Oleham, KM4ACK. This fork is unofficial and
 unsupported by KM4ACK.
+
+## 4.1.15 — 2026-10-15
+
+### Remaining Pi apps patched for Trixie / arm64
+- 27 more installers in `app/stable/pi` patched and added to
+  `bootstrap.sh` `patch_files` (35 `.bapp` files total). See the per-app
+  table in `PI5_TRIXIE.md`.
+- New helpers in `bin/trixie-apt.sh`: generic `*t64` fallback,
+  `bap_apt_install_available`, `bap_enable_armhf`, `bap_install_deb`,
+  `bap_gh_asset_url`, `bap_unsupported`, plus mappings for `conky`,
+  `libpcre3-dev`, `libdb++-dev`, `libqt5core5a` and `openjdk-*-jre/jdk/dbg`.
+
+### Notable fixes
+- **JS8Call** now comes from Debian (`js8call` 2.2.0); `files.js8call.com`
+  is dead and the GitHub releases are x86_64 only.
+- **WSJT-X** finds the `wsjtx-*-linux-aarch64.deb` filename used since 3.0.
+- **Pat** uses the GitHub releases API so the 1.0.0 `.deb` installs.
+- **HamClock** builds from `openhamclock/hamclock` and points at a live
+  backend; Clear Sky Institute went offline in 2026.
+- **GridTracker** installs GridTracker 2's arm64 `.deb` (`libgconf-2-4` is gone).
+- **HAMRS** uses the native arm64 AppImage instead of armv7l + armhf.
+- **CQRLOG, TQSL, Xastir, VNC, YAAC** use distro packages where the old
+  package names or download URLs no longer exist.
+- **VARA** refuses to install on the Pi 5 16K-page kernel with instructions.
+- **PISTATS** reports that its source is no longer published instead of
+  failing mid-download.
+
+### Verified unchanged
+AX25, BATT, DIPOLE, GPREDICT, GPSUPDATE, PATMENU, PIQSO, SECURITY, SHOWLOG,
+XYGRIB and the three community apps (CHECK, DASHBOARD, SPOT_POTA).

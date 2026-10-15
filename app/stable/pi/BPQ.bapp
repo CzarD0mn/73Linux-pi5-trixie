@@ -1,0 +1,119 @@
+BAPP=4.0
+ID=BPQ
+Name=LinBPQ
+Comment='BBS-Winlink Gateway'
+Ver=
+localVer=
+
+
+INSTALL(){
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	BETA=https://www.cantab.net/users/john.wiseman/Downloads/Beta
+	DL=https://www.cantab.net/users/john.wiseman/Downloads
+
+	if [ "$(getconf LONG_BIT)" = 64 ]; then
+		# Native aarch64 builds from G8BPQ
+		LINBPQ=pilinbpq64
+		APRS=piQtBPQAPRS64
+		bap_apt_install libdbus-1-3 zlib1g libqt5core5a libqt5gui5 libqt5network5 libqt5widgets5
+	else
+		LINBPQ=pilinbpq
+		APRS=piBPQAPRS
+	fi
+
+	cd || return 1
+	mkdir -p linbpq
+	cd linbpq || return 1
+
+	echo "Downloading LinBPQ (${LINBPQ})"
+	wget -nv --tries 2 --connect-timeout=60 "${BETA}/${LINBPQ}" -O linbpq || { echo "ERROR: LinBPQ download failed" >&2; return 1; }
+	chmod +x linbpq
+	wget -nv --tries 2 --connect-timeout=60 "${BETA}/${APRS}" -O bpqaprs && chmod +x bpqaprs
+	if [ ! -f bpq32.cfg ]; then
+		wget -nv --tries 2 --connect-timeout=60 "${DL}/SimpleRMSGateway_bpq32.cfg" -O bpq32.cfg
+		CALL=$(echo "$CALL" | tr '[:lower:]' '[:upper:]')
+		sed -i "s/MYCALL/$CALL/g" bpq32.cfg
+	fi
+
+	mkdir -p HTML
+	cd HTML || return 1
+	wget -nv --tries 2 --connect-timeout=60 "${BETA}/HTMLPages.zip" && unzip -o -q HTMLPages.zip && rm -f HTMLPages.zip
+	cd .. || return 1
+	wget -nv --tries 2 --connect-timeout=60 "${DL}/LinBPQAPRS.zip" && unzip -o -q LinBPQAPRS.zip && rm -f LinBPQAPRS.zip
+
+	# The config generator only exists as a 32-bit armhf Qt binary.
+	cd "${HOME}/linbpq" || return 1
+	wget -nv --tries 2 --connect-timeout=60 "${BETA}/piBPQConfigGen" -O piBPQConfigGen
+	chmod +x piBPQConfigGen
+	if [ "$(getconf LONG_BIT)" = 64 ]; then
+		echo "piBPQConfigGen is 32-bit only; installing armhf Qt5 runtime"
+		if ! { bap_enable_armhf && bap_apt_install libc6:armhf libstdc++6:armhf libqt5core5a:armhf \
+			libqt5gui5:armhf libqt5network5:armhf libqt5widgets5:armhf libgles2:armhf; }; then
+			echo "WARNING: armhf Qt5 libraries could not be installed. LinBPQ itself is"
+			echo "installed (native arm64) but the BPQ Config Generator will not start."
+			echo "Edit ~/linbpq/bpq32.cfg by hand instead."
+		fi
+	fi
+
+	cat >bpq-config.desktop <<EOF
+[Desktop Entry]
+Name=BPQ Config Generator
+GenericName=BPQ Config Generator
+Comment=Config File Generator for LinBPQ
+Exec=${HOME}/linbpq/piBPQConfigGen
+Terminal=false
+Type=Application
+Categories=Utility
+EOF
+	sudo mv bpq-config.desktop /usr/share/applications/
+
+	FILE=${HOME}/Desktop/LinBPQ-README
+	mkdir -p "${HOME}/Desktop"
+	cat <<EOF >"${FILE}"
+LinBPQ was installed during the build.
+
+You will find the config file generator
+under accessories in the main pi menu.
+
+NO CONFIGURATION was done for LinBPQ
+during the build. Each individual
+operator is responsible for configuring
+his/her station.
+
+After completing the config file, you can
+start LinBPQ from the command line by running:
+~/linbpq/linbpq
+
+Depending on your station setup, you may
+need to start rig control, direwolf, or
+other applications before running LinBPQ.
+
+If you need help, you can find
+the LinBPQ forums at
+https://groups.io/g/bpq32/topics
+and the main LinBPQ web page at
+https://www.cantab.net/users/john.wiseman/Documents/
+EOF
+}
+
+
+VERSION(){
+	if [ -d $HOME/linbpq ]; then
+		CURRENT=1
+		NEWVER=1
+	else
+		CURRENT=0
+		NEWVER=1
+	fi
+}
+
+REMOVE(){
+	echo "####################################"
+	echo "$ID has no removal tool"
+	echo "####################################"
+	sleep 3
+}

@@ -1,0 +1,60 @@
+BAPP=4.0
+ID=QTSOUND
+Name=QtSoundModem
+Comment='PiQtSoundModem'
+Ver=Update:0.57
+localVer=0
+
+
+INSTALL(){
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	# Native aarch64 build from G8BPQ (piQtSoundModem64) instead of the 32-bit
+	# binary + armhf Qt5/ALSA stack.
+	BETA=https://www.cantab.net/users/john.wiseman/Downloads/Beta
+	if [ "$(getconf LONG_BIT)" = 64 ]; then
+		BIN=piQtSoundModem64
+		bap_apt_install libqt5core5a libqt5gui5 libqt5network5 libqt5widgets5 \
+			libqt5serialport5 libqt5multimedia5 libqt5multimedia5-plugins \
+			libasound2 libasound2-plugins libfftw3-single3 libpulse0
+	else
+		BIN=piQtSoundModem
+		sudo apt-get install -y libqt5serialport5 libqt5multimedia5 libfftw3-single3
+	fi
+	mkdir -p "${HOME}/Downloads"
+	cd "${HOME}/Downloads" || return 1
+	wget --tries 2 --connect-timeout=60 -O piQtSoundModem "${BETA}/${BIN}" || return 1
+	chmod +x piQtSoundModem
+	sudo mv piQtSoundModem /usr/local/bin
+
+	cat >"${HOME}/Downloads/qtsoundmodem.desktop" <<EOF
+[Desktop Entry]
+Name=piQtSoundModem
+GenericName=port of UZ7HO's SoundModem
+Comment=port of UZ7HO's SoundModem
+Exec=/usr/local/bin/piQtSoundModem
+Icon=preferences-system-sharing
+Terminal=false
+Type=Application
+Categories=Utility;HamRadio
+EOF
+	sudo mv "${HOME}/Downloads/qtsoundmodem.desktop" /usr/share/applications/
+}
+
+
+VERSION(){
+	if [ -f /usr/local/bin/piQtSoundModem ]; then
+		CURRENT=0.57
+		NEWVER=0.57
+	else
+		CURRENT=0
+		NEWVER=0.57
+	fi
+}
+
+REMOVE(){
+	sudo rm /usr/local/bin/piQtSoundModem /usr/share/applications/qtsoundmodem.desktop
+}

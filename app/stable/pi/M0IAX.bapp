@@ -1,0 +1,67 @@
+BAPP=4.0
+ID=M0IAX
+Name=JS8CallUtilities
+Comment='Tools for JS8Call Messages'
+Ver=Update:2
+localVer=0
+
+
+INSTALL(){
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	# The old JS8CallUtils_RaspberryPi.zip (m0iax.com) is a 2020 32-bit build and
+	# the site no longer serves it. Run JS8CallUtilities_V2 from source in a
+	# Python venv (PEP 668 blocks system-wide pip on Trixie).
+	bap_apt_install git python3 python3-venv python3-tk python3-gps || return 1
+	APPDIR=${HOME}/.local/share/m0iax-js8callutils
+	if [ -d "$APPDIR/src/.git" ]; then
+		git -C "$APPDIR/src" pull --ff-only
+	else
+		rm -rf "$APPDIR"
+		mkdir -p "$APPDIR"
+		git clone --depth 1 https://github.com/m0iax/JS8CallUtilities_V2.git "$APPDIR/src" || return 1
+	fi
+	python3 -m venv --system-site-packages "$APPDIR/venv" || return 1
+	# gps comes from python3-gps (system site-packages).
+	"$APPDIR/venv/bin/pip" install --upgrade maidenhead pyserial || return 1
+
+	cat >"${BUILDDIR:-/tmp}/JS8CallUtils_v2" <<EOF
+#!/bin/bash
+cd "$APPDIR/src" || exit 1
+exec "$APPDIR/venv/bin/python" JS8CallUtils_v2.py "\$@"
+EOF
+	sudo install -m 755 "${BUILDDIR:-/tmp}/JS8CallUtils_v2" /usr/local/bin/JS8CallUtils_v2
+	rm -f "${BUILDDIR:-/tmp}/JS8CallUtils_v2"
+
+	cat >"${BUILDDIR:-/tmp}/m0iax.desktop" <<EOF
+[Desktop Entry]
+Name=M0IAX JS8 Utils
+GenericName=M0IAX JS8 Utils
+Comment=GPS & Message Tool for JS8Call
+Exec=JS8CallUtils_v2
+Icon=${BAPDIR}/data/ico/m0iax.png
+Terminal=false
+Type=Application
+Categories=Network;HamRadio;
+EOF
+	sudo mv "${BUILDDIR:-/tmp}/m0iax.desktop" /usr/share/applications/
+}
+
+
+VERSION(){
+	if [ -f /usr/local/bin/JS8CallUtils_v2 ]; then
+		CURRENT=2
+		NEWVER=2
+	else
+		CURRENT=0
+		NEWVER=2
+	fi
+}
+
+REMOVE(){
+	sudo rm -f /usr/local/bin/JS8CallUtils_v2 /usr/share/applications/m0iax.desktop
+	rm -rf "${HOME}/.local/share/m0iax-js8callutils"
+}

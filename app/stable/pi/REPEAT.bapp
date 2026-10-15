@@ -1,0 +1,45 @@
+BAPP=4.0
+ID=REPEAT
+Name=RepeaterSTART
+Comment='Repeater Directory'
+Ver=Update:
+localVer=0
+
+
+INSTALL(){
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	# The upstream wget hit the SourceForge HTML page for the .deb (no
+	# /download suffix) and dpkg -i did not pull dependencies.
+	bap_apt_install gir1.2-osmgpsmap-1.0 gir1.2-geoclue-2.0 libosmgpsmap-1.0-1 python3-gi python3-gi-cairo xdg-utils
+	REPEAT_LATEST=$(curl -fsSL --max-time 30 https://sourceforge.net/projects/repeater-start/files/ \
+		| grep -oE 'repeater-start_[0-9.]+_all\.deb' | sort -V | tail -1)
+	if [ -z "$REPEAT_LATEST" ]; then
+		echo "ERROR: could not find repeater-start .deb on SourceForge" >&2
+		return 1
+	fi
+	mkdir -p "${HOME}/Downloads"
+	cd "${HOME}/Downloads" || return 1
+	wget --tries 2 --connect-timeout=60 -O "$REPEAT_LATEST" \
+		"https://sourceforge.net/projects/repeater-start/files/${REPEAT_LATEST}/download" || return 1
+	bap_install_deb "$REPEAT_LATEST" || return 1
+	rm -f "$REPEAT_LATEST"
+}
+
+
+VERSION(){
+	if [ -f /usr/bin/repeaterSTART ]; then
+		NEWVER=$(apt-cache show repeater-start | grep Version | sed 's/Version: //')
+		CURRENT=$(dpkg --list | grep repeater-start | awk '{print $3}')
+	else
+		CURRENT=0
+		NEWVER=$(apt-cache show repeater-start | grep Version | sed 's/Version: //')
+	fi
+}
+
+REMOVE(){
+	sudo dpkg --remove repeater-start
+}

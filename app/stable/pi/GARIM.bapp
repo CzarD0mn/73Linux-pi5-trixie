@@ -1,0 +1,58 @@
+BAPP=4.0
+ID=GARIM
+Name=GARIM
+Comment='File Transfer Program'
+Ver=Update:1
+localVer=0
+
+
+INSTALL(){
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	# whitemesa.net now returns 403 for the /garim/src/ directory index, so the
+	# upstream "scrape the newest tarball" step gets nothing. Use the known
+	# tarball, then fall back to the radiocatalog/garim GitHub mirror.
+	# Upstream also never installed the FLTK / zlib build dependencies.
+	GARIM_VER=${GARIM_VER:-1.7}
+	bap_apt_install build-essential libfltk1.3-dev zlib1g-dev || return 1
+
+	mkdir -p "${BUILDDIR}"
+	cd "${BUILDDIR}" || return 1
+	rm -rf "${BUILDDIR}"/garim-* "${BUILDDIR}/garim"
+	GPKG=garim-${GARIM_VER}.tar.gz
+	if wget --tries 2 --connect-timeout=60 -U "Mozilla/5.0" -O "${GPKG}" "https://www.whitemesa.net/garim/src/${GPKG}" \
+		&& gzip -t "${GPKG}" 2>/dev/null; then
+		tar -xzf "${GPKG}"
+		rm -f "${GPKG}"
+		DIRR=garim-${GARIM_VER}
+	else
+		rm -f "${GPKG}"
+		echo "whitemesa.net download failed; using GitHub mirror radiocatalog/garim"
+		git clone --depth 1 https://github.com/radiocatalog/garim.git || return 1
+		DIRR=garim
+	fi
+	cd "${BUILDDIR}/${DIRR}" || return 1
+	./configure || return 1
+	make -j "${BAPCORE:-$(nproc)}" || return 1
+	sudo make install
+}
+
+
+VERSION(){
+if ! hash garim 2>/dev/null; then
+	CURRENT=0
+	NEWVER=1
+else
+	CURRENT=1
+	NEWVER=1
+fi   
+}
+
+REMOVE(){
+	DIR=$(ls ${BUILDDIR} | grep garim)
+	cd ${BUILDDIR}/$DIR
+	sudo make uninstall
+}

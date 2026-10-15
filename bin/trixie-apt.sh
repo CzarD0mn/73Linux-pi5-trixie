@@ -1,7 +1,10 @@
 #! /bin/bash
 # Install packages with Debian 13 (Trixie) name fallbacks.
 bap_pkg_available() {
-	apt-cache show "$1" >/dev/null 2>&1
+	local p
+	for p in "$@"; do
+		apt-cache show "$p" >/dev/null 2>&1 || return 1
+	done
 }
 
 bap_resolve_pkg() {
@@ -50,12 +53,51 @@ bap_resolve_pkg() {
 			else echo php
 			fi
 			;;
+		libqt5core5a|libqt5core5a:armhf)
+			if bap_pkg_available "libqt5core5t64${pkg#libqt5core5a}"; then echo "libqt5core5t64${pkg#libqt5core5a}"
+			else echo "$pkg"
+			fi
+			;;
 		swig4.0)
 			if bap_pkg_available swig; then echo swig
 			else echo swig4.0
 			fi
 			;;
+		conky)
+			# conky is a virtual package on Trixie (conky-std / conky-cli / conky-all)
+			if bap_pkg_available conky-std; then echo conky-std
+			else echo conky
+			fi
+			;;
+		libpcre3-dev)
+			if bap_pkg_available libpcre3-dev; then echo libpcre3-dev
+			else echo libpcre2-dev
+			fi
+			;;
+		libdb++-dev)
+			if bap_pkg_available libdb++-dev; then echo libdb++-dev
+			else echo libdb5.3++-dev
+			fi
+			;;
 		*)
+			# openjdk-N-jre/jdk/dbg: Trixie has 21/25; fall back to default-jre.
+			case "$pkg" in
+				openjdk-*-jre|openjdk-*-jdk|openjdk-*-dbg)
+					if bap_pkg_available "$pkg"; then echo "$pkg"
+					else echo default-jre
+					fi
+					return
+					;;
+			esac
+			# Generic 64-bit time_t rename (libfooN -> libfooNt64), keeps :arch suffix.
+			if ! bap_pkg_available "$pkg"; then
+				local base="${pkg%%:*}" arch=""
+				[ "$base" != "$pkg" ] && arch=":${pkg#*:}"
+				if bap_pkg_available "${base}t64${arch}"; then
+					echo "${base}t64${arch}"
+					return
+				fi
+			fi
 			echo "$pkg"
 			;;
 	esac
@@ -116,4 +158,65 @@ bap_download_w1hkj() {
 		return 1
 	fi
 	echo "$tarball"
+}
+
+# Like bap_apt_install, but drops packages that do not exist in the
+# configured repositories (with a warning) instead of failing the whole set.
+bap_apt_install_available() {
+	local resolved=() p r
+	for p in "$@"; do
+		r=$(bap_resolve_pkg "$p")
+		if apt-cache show "$r" >/dev/null 2>&1; then
+			resolved+=("$r")
+		else
+			echo "WARNING: package $p ($r) not available on this release; skipping" >&2
+		fi
+	done
+	[ ${#resolved[@]} -eq 0 ] && return 0
+	sudo apt-get install -y "${resolved[@]}"
+}
+
+# True on a 64-bit ARM userland (Pi 5 / CM5 running arm64 Raspberry Pi OS).
+bap_is_arm64() {
+	[ "$(dpkg --print-architecture 2>/dev/null || uname -m)" = arm64 ] || [ "$(uname -m)" = aarch64 ] \
+		&& [ "$(getconf LONG_BIT)" = 64 ]
+}
+
+# Enable armhf multiarch once (for the few 32-bit-only binaries left).
+bap_enable_armhf() {
+	if ! dpkg --print-foreign-architectures | grep -qx armhf; then
+		sudo dpkg --add-architecture armhf
+		sudo apt-get update
+	fi
+}
+
+# Install a local .deb and pull its dependencies in one step.
+bap_install_deb() {
+	local deb="$1"
+	case "$deb" in /*) ;; *) deb="$(pwd)/$deb" ;; esac
+	sudo apt-get install -y "$deb"
+}
+
+# Print the download URL of the newest GitHub release asset matching an ERE.
+# Usage: bap_gh_asset_url owner/repo 'linux_arm64\.deb$'
+bap_gh_asset_url() {
+	curl -fsSL --max-time 30 "https://api.github.com/repos/$1/releases/latest" 2>/dev/null \
+		| grep -oE '"browser_download_url": *"[^"]+"' | sed 's/.*: *"//;s/"$//' \
+		| grep -E "$2" | head -1
+}
+
+# Explain why an app cannot be installed on this system and fail cleanly.
+bap_unsupported() {
+	local app="$1"; shift
+	echo "##########################################################" >&2
+	echo "# $app is not supported on Raspberry Pi 5 / Trixie (arm64)" >&2
+	local line
+	for line in "$@"; do echo "# $line" >&2; done
+	echo "# See PI5_TRIXIE.md in the 73Linux-pi5-trixie fork." >&2
+	echo "##########################################################" >&2
+	if hash yad 2>/dev/null && [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+		yad --center --title="$app not supported" --button=OK \
+			--text="$app is not supported on Raspberry Pi 5 / Trixie.\n\n$(printf '%s\n' "$@")" 2>/dev/null || true
+	fi
+	return 1
 }

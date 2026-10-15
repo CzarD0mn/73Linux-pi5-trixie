@@ -1,0 +1,68 @@
+BAPP=4.0
+ID=XASTIR
+Name=Xastir
+Comment='APRS Client'
+Ver=Update:2.1.8
+localVer=2.1.7
+
+
+INSTALL(){
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	# Upstream built from git and needed libpcre3-dev, which Trixie removed.
+	# Debian Trixie packages Xastir 2.2.0 for arm64, so use that. Set
+	# XASTIR_FROM_SOURCE=1 to build git master instead (uses libpcre2-dev).
+	if [ "${XASTIR_FROM_SOURCE:-0}" != 1 ] && bap_pkg_available xastir; then
+		sudo apt-get install -y xastir
+		return $?
+	fi
+	bap_apt_install_available build-essential automake git xorg-dev libmotif-dev graphicsmagick \
+		gv libcurl4-openssl-dev shapelib libshp-dev libpcre3-dev libproj-dev libdb-dev python-dev-is-python3 \
+		libax25-dev libwebp-dev libgraphicsmagick1-dev festival festival-dev || return 1
+	mkdir -p "${BUILDDIR}"
+	cd "${BUILDDIR}" || return 1
+	rm -rf Xastir
+	git clone https://github.com/Xastir/Xastir.git || return 1
+	cd Xastir || return 1
+	./bootstrap.sh
+	mkdir -p build
+	cd build || return 1
+	../configure && make -j "${BAPCORE:-$(nproc)}" && sudo make install || return 1
+	cat >xastir.desktop <<EOF
+[Desktop Entry]
+Name=Xastir
+Comment=X Amateur Station Tracking and Information Reporting
+Exec=xastir
+Icon=/usr/local/share/xastir/symbols/icon.png
+Terminal=false
+Type=Application
+Categories=Network;HamRadio
+Keywords=APRS;AX.25;HamRadio
+EOF
+	sudo mv xastir.desktop /usr/share/applications/
+}
+
+
+VERSION(){
+	NEWVER=$(curl --max-time 20 -s https://github.com/Xastir/Xastir | grep Release- | head -1 | sed 's/.*Release-//;s/">//')
+	if ! hash xastir 2>/dev/null; then
+		CURRENT=0
+	else
+		CURRENT=$(xastir -V 2>/dev/null | awk '{print $2}' | sed 's/V//' | sed '/^[[:space:]]*$/d' | head -1)
+		if dpkg -s xastir >/dev/null 2>&1; then
+			# Debian package: track the apt candidate, not git releases
+			NEWVER=$(apt-cache policy xastir | awk '/Candidate:/{print $2}' | sed 's/[-+].*//')
+			CURRENT=$(dpkg-query -W -f='${Version}' xastir | sed 's/[-+].*//')
+		fi
+	fi
+}
+
+REMOVE(){
+	if dpkg -s xastir >/dev/null 2>&1; then
+		sudo apt-get remove -y xastir
+	fi
+	sudo rm -f /usr/local/bin/xastir /usr/share/applications/xastir.desktop
+}

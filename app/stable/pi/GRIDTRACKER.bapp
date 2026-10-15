@@ -1,0 +1,58 @@
+BAPP=4.0
+ID=GRIDTRACKER
+Name=GridTracker
+Comment='Track grids in FT8'
+Ver=Update:1.22.1016
+localVer=1.22.1010
+
+
+INSTALL(){
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	# The old GridTracker 1.x NW.js tarballs (Dropbox links) need libgconf-2-4,
+	# which Trixie removed. GridTracker 2 ships an official arm64 .deb.
+	GT_PAGE=https://gridtracker.org/index.php/downloads/gridtracker-downloads
+	if [ "$(getconf LONG_BIT)" != 64 ]; then
+		bap_unsupported GridTracker "GridTracker 2 only publishes arm64 (64-bit) Linux builds."
+		return 1
+	fi
+	GTURL=$(curl -fsSL -A "Mozilla/5.0" --max-time 30 "$GT_PAGE" \
+		| grep -oE 'https://download2\.gridtracker\.org/GridTracker2-[0-9.]+-arm64\.deb' | sort -V | tail -1)
+	if [ -z "$GTURL" ]; then
+		echo "ERROR: could not find the GridTracker2 arm64 .deb on $GT_PAGE" >&2
+		return 1
+	fi
+	mkdir -p "${BUILDDIR}"
+	cd "${BUILDDIR}" || return 1
+	GTDEB=${GTURL##*/}
+	wget --tries 2 --connect-timeout=60 -O "$GTDEB" "$GTURL" || return 1
+	bap_install_deb "$GTDEB" || return 1
+	rm -f "$GTDEB"
+
+	# Retire the GridTracker 1.x install made by upstream 73Linux / BAP.
+	if [ -d "$HOME/GridTracker" ]; then
+		mv "$HOME/GridTracker" "$HOME/GridTracker.old.$(date +%Y%m%d%H%M%S)"
+	fi
+	sudo rm -f /usr/share/applications/gridtracker.desktop
+}
+
+
+VERSION(){
+	if dpkg -s gridtracker2 >/dev/null 2>&1; then
+		CURRENT=$(dpkg-query -W -f='${Version}' gridtracker2 | sed 's/-.*//')
+	else
+		CURRENT=0
+	fi
+	NEWVER=$(curl --max-time 20 -fsSL -A "Mozilla/5.0" https://gridtracker.org/index.php/downloads/gridtracker-downloads 2>/dev/null \
+		| grep -oE 'GridTracker2-[0-9.]+-arm64\.deb' | sort -V | tail -1 | sed 's/GridTracker2-//;s/-arm64.deb//')
+	[ -z "$NEWVER" ] && NEWVER=$CURRENT
+}
+
+REMOVE(){
+	sudo apt-get remove -y gridtracker2 2>/dev/null || true
+	rm -rf "${HOME}/GridTracker"
+	sudo rm -f /usr/share/applications/gridtracker.desktop
+}

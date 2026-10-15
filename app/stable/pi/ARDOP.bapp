@@ -1,0 +1,54 @@
+BAPP=4.0
+ID=ARDOP
+Name=ardopcf
+Comment='ARDOP Modem'
+Ver=0
+localVer=0
+
+
+INSTALL(){
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	# pflarue/ardop ships native arm64 and arm32 Linux binaries. Upstream's
+	# grep for "ardopcf_arm_Linux_64" still matches; this keeps the same asset
+	# but uses the GitHub API and fails instead of installing an empty file.
+	user=pflarue
+	repo=ardop
+	if [ "$(getconf LONG_BIT)" = 64 ]; then
+		search_term="ardopcf_arm_Linux_64$"
+	else
+		search_term="ardopcf_arm_Linux_32$"
+	fi
+	pkg_url=$(bap_gh_asset_url "${user}/${repo}" "$search_term")
+	if [ -z "$pkg_url" ]; then
+		echo "ERROR: no ARDOP asset matching $search_term in ${user}/${repo} latest release" >&2
+		return 1
+	fi
+	mkdir -p "${BUILDDIR:-$HOME/Downloads}"
+	cd "${BUILDDIR:-$HOME/Downloads}" || return 1
+	wget --tries 2 --connect-timeout=60 -O ardopcf "$pkg_url" || return 1
+	chmod +x ardopcf
+	sudo mv ardopcf /usr/local/bin/ardopcf
+}
+
+VERSION(){
+  user=pflarue
+  repo=ardop
+	if [ -f /usr/local/bin/ardopcf ]; then
+		CURRENT=$(cat $HOME/73Linux/cache/.ardop_version | sed 's/version=//')
+		NEWVER=$(curl -s https://api.github.com/repos/${user}/${repo}/releases/latest | grep tag_name | sed 's/"tag_name": "//;s/",//;s/ //g')
+	else
+		CURRENT=0
+		NEWVER=$(curl -s https://api.github.com/repos/${user}/${repo}/releases/latest | grep tag_name | sed 's/"tag_name": "//;s/",//;s/ //g')
+
+	fi
+}
+
+REMOVE(){
+	if [ -f /usr/local/bin/ardopcf ]; then
+		rm /usr/local/bin/ardopcf
+	fi	
+}

@@ -1,0 +1,51 @@
+BAPP=4.0
+ID=TQSL
+Name=tqsl
+Comment='Log Book of the World'
+Ver=Update:1
+localVer=0
+
+
+INSTALL(){
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	# Debian Trixie packages TrustedQSL (trustedqsl) for arm64; use it. The
+	# upstream source build needed libdb++-dev, which Trixie dropped
+	# (libdb5.3++-dev remains), so that path is kept only as a fallback.
+	if bap_pkg_available trustedqsl; then
+		sudo apt-get install -y trustedqsl
+		return $?
+	fi
+	bap_apt_install cmake g++ libexpat1-dev libssl-dev libdb++-dev libcurl4-openssl-dev \
+		libwxgtk3.2-dev sqlite3 libsqlite3-dev zlib1g-dev || return 1
+	mkdir -p "${BUILDDIR}"
+	cd "${BUILDDIR}" || return 1
+	rm -rf "${BUILDDIR}"/tqsl-*
+	CUR=$(curl -fsSL --max-time 30 https://www.arrl.org/tqsl-download | grep -oE 'TQSL [0-9.]+ for Linux' | head -1 | awk '{print $2}')
+	[ -n "$CUR" ] || { echo "ERROR: could not find TQSL version on arrl.org" >&2; return 1; }
+	wget --tries 2 --connect-timeout=60 "https://www.arrl.org/tqsl/tqsl-${CUR}.tar.gz" || return 1
+	tar -xzf "tqsl-${CUR}.tar.gz" && rm -f "tqsl-${CUR}.tar.gz"
+	cd "tqsl-${CUR}" || return 1
+	cmake . && make -j "${BAPCORE:-$(nproc)}" && sudo make install
+}
+
+
+VERSION(){
+	if ! hash tqsl 2>/dev/null; then
+		CURRENT=0
+		NEWVER=1
+	else
+		CURRENT=1
+		NEWVER=1
+	fi
+}
+
+REMOVE(){
+	if dpkg -s trustedqsl >/dev/null 2>&1; then
+		sudo apt-get remove -y trustedqsl
+	fi
+	sudo rm -f /usr/local/bin/tqsl /usr/share/applications/tqsl.desktop
+}

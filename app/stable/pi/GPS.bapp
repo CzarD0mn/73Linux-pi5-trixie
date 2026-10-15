@@ -1,0 +1,59 @@
+BAPP=4.0
+ID=GPS
+Name=gps
+Comment='GPS Software'
+Ver=REPO
+localVer=REPO
+
+INSTALL(){
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	bap_apt_install python3-gps gpsd-tools gpsd-clients gpsd chrony python3-gi-cairo libgps-dev || return 1
+	if [ -f /etc/default/gpsd ] && [ ! -f /etc/default/gpsd.org ]; then
+		sudo mv /etc/default/gpsd /etc/default/gpsd.org
+	fi
+	sudo wget -q https://raw.githubusercontent.com/km4ack/pi-scripts/master/gpsd -O /etc/default/gpsd || return 1
+	CHRONYCHK=$(grep "refclock SHM 0 offset 0.5 delay 0.2 refid NMEA" /etc/chrony/chrony.conf)
+	if [ -z "$CHRONYCHK" ]; then
+		echo "refclock SHM 0 offset 0.5 delay 0.2 refid NMEA" | sudo tee -a /etc/chrony/chrony.conf >/dev/null
+	fi
+	sudo systemctl enable gpsd
+	GPS=$(grep "GPS=" "${BAPDIR}/cache/config.txt" | sed 's/GPS=//')
+	sudo sed -i "s|^DEVICES.*|DEVICES=\"${GPS}\"|" /etc/default/gpsd
+	sudo systemctl restart gpsd || true
+	sudo systemctl restart chrony || true
+}
+
+MENU(){
+    cat >xgps.desktop <<EOF
+[Desktop Entry]
+Name=XGPS
+GenericName=XGPS
+Comment=GPS Date Viewer
+Exec=/usr/bin/xgps
+Icon=${BAPDIR}/data/ico/gps.png
+Terminal=false
+Type=Application
+Categories=Utility
+EOF
+
+    sudo mv xgps.desktop /usr/share/applications/
+}
+
+VERSION(){
+if ! hash gpsd 2>/dev/null; then
+	CURRENT=0
+	NEWVER=REPO
+else
+	CURRENT=REPO
+	NEWVER=REPO
+
+fi
+}
+
+REMOVE(){
+	sudo apt purge -y python3-gps gpsd-tools gpsd-clients gpsd chrony python3-gi-cairo libgps-dev
+}

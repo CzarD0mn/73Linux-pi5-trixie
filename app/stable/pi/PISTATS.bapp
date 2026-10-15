@@ -1,0 +1,55 @@
+BAPP=4.0
+ID=PISTATS
+Name=Pi-Stats
+Comment='Pi3/4 Stats Monitor'
+Ver=Update:1
+localVer=0
+
+
+INSTALL(){
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	# W1HKJ's pistats source used to live at www.w1hkj.com/PI/. That host no
+	# longer answers and www.w1hkj.org has no PI/ directory, so there is
+	# nothing to build. Try the old locations in case it comes back.
+	CUR=""
+	for host in https://www.w1hkj.org/PI http://www.w1hkj.com/PI; do
+		CUR=$(curl -fsSL --max-time 20 "${host}/pistats.html" 2>/dev/null | grep -oE 'pistats[^"]*\.tgz' | head -1)
+		if [ -n "$CUR" ]; then PSHOST=$host; break; fi
+	done
+	if [ -z "$CUR" ]; then
+		bap_unsupported Pi-Stats "The pistats source (W1HKJ, www.w1hkj.com/PI) is no longer published." \
+			"Alternatives: 'vcgencmd measure_temp', 'htop', or the Pi OS CPU/temperature panel plugins."
+		return 1
+	fi
+	bap_apt_install build-essential libfltk1.3-dev || return 1
+	mkdir -p "${BUILDDIR}"
+	cd "${BUILDDIR}" || return 1
+	wget --tries 2 --connect-timeout=60 "${PSHOST}/${CUR}" || return 1
+	tar -xzf "${CUR}" && rm -f "${CUR}"
+	PISTATDIR=$(ls "${BUILDDIR}" | grep pistats | head -1)
+	cd "${BUILDDIR}/${PISTATDIR}" || return 1
+	make || return 1
+	sudo mv pistats /usr/local/bin
+	sudo cp "${BUILDDIR}/${PISTATDIR}/data/pistats.desktop" /usr/share/applications/
+	sudo sed -i "/Terminal=false/i Icon=${BAPDIR}\/data\/ico\/wrench.png" /usr/share/applications/pistats.desktop
+	make clean
+}
+
+
+VERSION(){
+	if [ -f /usr/local/bin/pistats ]; then
+		CURRENT=1
+		NEWVER=1
+	else
+		CURRENT=0
+		NEWVER=1
+	fi
+}
+
+REMOVE(){
+	sudo rm /usr/local/bin/pistats /usr/share/applications/pistats.desktop
+}

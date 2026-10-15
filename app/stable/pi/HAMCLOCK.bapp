@@ -1,0 +1,74 @@
+BAPP=4.0
+ID=HAMCLOCK
+Name=HamClock
+Comment='Large Ham Clock'
+Ver=Update:1
+localVer=0
+
+
+INSTALL(){
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	# Clear Sky Institute (www.clearskyinstitute.com) went offline in 2026 after
+	# HamClock's author, WB0OEW, passed away. Build the community-maintained
+	# client from github.com/openhamclock/hamclock and point it at a live
+	# backend. Override with HAMCLOCK_BACKEND=hamclock.com:80 if you prefer.
+	HAMCLOCK_BACKEND=${HAMCLOCK_BACKEND:-ohb.hamclock.app:80}
+	bap_apt_install make g++ libx11-dev unzip curl || return 1
+
+	mkdir -p "${BUILDDIR}"
+	cd "${BUILDDIR}" || return 1
+	rm -rf "${BUILDDIR}/ESPHamClock" ESPHamClock.zip
+
+	# Newest stable tag (skip the vX.YYbNN betas), then its ESPHamClock zip.
+	HCTAG=$(curl -fsSL --max-time 30 "https://api.github.com/repos/openhamclock/hamclock/releases?per_page=30" \
+		| grep -oE '"tag_name": *"v[0-9]+\.[0-9]+(\.[0-9]+)*"' | head -1 | sed 's/.*"\(v[^"]*\)"/\1/')
+	HCURL=""
+	if [ -n "$HCTAG" ]; then
+		HCURL=$(curl -fsSL --max-time 30 "https://api.github.com/repos/openhamclock/hamclock/releases/tags/${HCTAG}" \
+			| grep -oE '"browser_download_url": *"[^"]*/ESPHamClock-V4[^"]*\.zip"' | sed 's/.*: *"//;s/"$//' | head -1)
+	fi
+	[ -z "$HCURL" ] && HCURL=https://ohb.hamclock.app/ham/HamClock/ESPHamClock.zip
+	echo "Downloading $HCURL"
+	curl -fL -o ESPHamClock.zip "$HCURL" || return 1
+	unzip -q ESPHamClock.zip || return 1
+	rm -f ESPHamClock.zip
+	cd ESPHamClock || return 1
+	make -j "${BAPCORE:-$(nproc)}" hamclock-1600x960 || return 1
+	sudo install -m 755 hamclock-1600x960 /usr/local/bin/hamclock
+	make clean >/dev/null 2>&1 || true
+
+	cat >"${BUILDDIR}/hamclock.desktop" <<EOF
+[Desktop Entry]
+Name=HamClock
+GenericName=Ham Clock
+Comment=Ham Clock
+Exec=hamclock -b ${HAMCLOCK_BACKEND}
+Icon=/usr/share/icons/Adwaita/scalable/apps/preferences-system-time-symbolic.svg
+Terminal=false
+Type=Application
+Categories=HamRadio;
+EOF
+	sudo mv "${BUILDDIR}/hamclock.desktop" /usr/share/applications/
+	if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+		echo "NOTE: HamClock is an X11 program; under Wayland it runs through Xwayland."
+	fi
+}
+
+
+VERSION(){
+	if [ -f /usr/local/bin/hamclock ]; then
+		CURRENT=1
+		NEWVER=1
+	else
+		CURRENT=0
+		NEWVER=1
+	fi
+}
+
+REMOVE(){
+	sudo rm /usr/local/bin/hamclock /usr/share/applications/hamclock.desktop
+}

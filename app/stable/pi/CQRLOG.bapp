@@ -1,0 +1,59 @@
+BAPP=4.0
+ID=CQRLOG
+Name=CQRLOG
+Comment='Logging Software'
+Ver=Update:2.5.2
+localVer=0
+
+
+INSTALL(){
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	# Upstream built from git with Lazarus 2.2 / lcl-2.2, which Trixie no longer
+	# ships (it has lazarus-4.0). Debian packages CQRLOG itself, so use that.
+	if bap_pkg_available cqrlog; then
+		sudo apt-get install -y cqrlog
+		return $?
+	fi
+
+	echo "Debian cqrlog package not found; building from source with the distro Lazarus"
+	bap_apt_install_available git build-essential lazarus lcl-gtk2 fpc fp-units-misc \
+		libssl-dev libmariadb-dev-compat default-mysql-client-core default-mysql-server \
+		default-mysql-server-core libnetpbm11 || return 1
+	rm -rf "${BUILDDIR}/cqrlog"
+	mkdir -p "${BUILDDIR}"
+	cd "${BUILDDIR}" || return 1
+	git clone https://github.com/ok2cqr/cqrlog.git || return 1
+	cd "${BUILDDIR}/cqrlog" || return 1
+	make || return 1
+	sudo make install
+}
+
+
+VERSION(){
+
+	lastrelease() {
+		git ls-remote --tags https://github.com/ok2cqr/cqrlog | cut -d/ -f3- | tail -n1 | sed 's/v//'
+	 }
+
+	if ! hash cqrlog 2>/dev/null; then
+		CURRENT=0
+		NEWVER=$(lastrelease)
+	else
+		CURRENT=$(cqrlog --version | awk '{print $2}' | sed 's/Ver://')
+		NEWVER=$(lastrelease)
+	fi
+}
+
+REMOVE(){
+	if dpkg -s cqrlog >/dev/null 2>&1; then
+		sudo apt-get remove -y cqrlog
+	else
+		sudo rm -rf /usr/share/cqrlog
+		sudo rm -f /usr/bin/cqrlog
+		sudo rm -f /usr/share/applications/cqrlog.desktop
+	fi
+}

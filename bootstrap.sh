@@ -25,7 +25,7 @@ if [ ! -d "$DEST/.git" ] && [ ! -f "$DEST/73.sh" ]; then
 fi
 
 echo "Applying Pi 5 / Trixie patches"
-mkdir -p "$DEST/bin" "$DEST/app/stable/pi"
+mkdir -p "$DEST/bin" "$DEST/app/stable/pi" "$DEST/app/community/pi"
 cp -a "$HERE/.pi5-trixie-fork" "$DEST/"
 cp -a "$HERE/PI5_TRIXIE.md" "$DEST/"
 cp -a "$HERE/bin/trixie-apt.sh" "$DEST/bin/"
@@ -52,6 +52,29 @@ patch_files=(
   app/stable/pi/PITERM.bapp
   app/stable/pi/QTSOUND.bapp
   app/stable/pi/HAMRS.bapp
+  app/stable/pi/ARDOP.bapp
+  app/stable/pi/ARDOPGUI.bapp
+  app/stable/pi/BPQ.bapp
+  app/stable/pi/CONKY.bapp
+  app/stable/pi/CQRLOG.bapp
+  app/stable/pi/DIREWOLF.bapp
+  app/stable/pi/GARIM.bapp
+  app/stable/pi/GPS.bapp
+  app/stable/pi/GRIDCALC.bapp
+  app/stable/pi/GRIDTRACKER.bapp
+  app/stable/pi/HAMCLOCK.bapp
+  app/stable/pi/JS8.bapp
+  app/stable/pi/M0IAX.bapp
+  app/stable/pi/PAT.bapp
+  app/stable/pi/PIAPRS.bapp
+  app/stable/pi/PISTATS.bapp
+  app/stable/pi/REPEAT.bapp
+  app/stable/pi/TQSL.bapp
+  app/stable/pi/VARA.bapp
+  app/stable/pi/VNC.bapp
+  app/stable/pi/WSJTX.bapp
+  app/stable/pi/XASTIR.bapp
+  app/stable/pi/YAAC.bapp
 )
 
 for rel in "${patch_files[@]}"; do

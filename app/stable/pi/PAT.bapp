@@ -1,0 +1,107 @@
+BAPP=4.0
+ID=PAT
+Name=Pat
+Comment='Pat Winlink Client'
+Ver=Update:0.13.1
+localVer=0.12.1
+
+
+INSTALL(){
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	# Pat 1.0.0 broke the upstream installer: it scraped the (now lazy-loaded)
+	# GitHub releases HTML and rebuilt the URL as v0.<x>, and parsed
+	# "pat version" assuming 0.x. Use the GitHub API and treat >= 0.12 / 1.x as
+	# the ~/.config/pat layout. Falls back to Debian's pat package.
+	PORT=8080
+	DIR=${BUILDDIR}
+	mkdir -p "${DIR}"
+	cd "${DIR}" || return 1
+	WHO=$(whoami)
+	bap_apt_install jq curl
+
+	if [ -f "${HOME}/.wl2k/config.json" ]; then
+		cp "${HOME}/.wl2k/config.json" "${DIR}/config.json"
+	elif [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/pat/config.json" ]; then
+		cp "${XDG_CONFIG_HOME:-$HOME/.config}/pat/config.json" "${DIR}/config.json"
+	fi
+
+	if [ "$(getconf LONG_BIT)" = 64 ]; then
+		PATARCH=arm64
+	else
+		PATARCH=armhf
+	fi
+	PATURL=$(bap_gh_asset_url la5nta/pat "pat_[0-9.]+_linux_${PATARCH}\\.deb$")
+	if [ -n "$PATURL" ] && wget --tries 2 --connect-timeout=60 -O "${DIR}/${PATURL##*/}" "$PATURL"; then
+		bap_install_deb "${DIR}/${PATURL##*/}" || return 1
+		rm -f "${DIR}/${PATURL##*/}"
+	else
+		echo "GitHub release download failed; installing Debian pat package"
+		sudo apt-get install -y pat || return 1
+	fi
+
+	#lines below configure pat with user info (first run writes a default config)
+	pat http >/dev/null 2>&1 &
+	sleep 5
+	sudo killall pat 2>/dev/null || true
+	sudo systemctl enable "pat@${WHO}"
+	cd "${DIR}" || return 1
+
+	PAT_RAW=$(pat version 2>/dev/null | awk '{print $2}' | sed 's/^v//')
+	PAT_MAJOR=${PAT_RAW%%.*}
+	PAT_MINOR=$(echo "$PAT_RAW" | cut -d. -f2)
+	if [ "${PAT_MAJOR:-0}" -eq 0 ] 2>/dev/null && [ "${PAT_MINOR:-0}" -le 11 ] 2>/dev/null; then
+		echo "pat version 0.11 or older detected"
+		FIG=$HOME/.wl2k/config.json
+	else
+		echo "pat version ${PAT_RAW} detected"
+		FIG=${XDG_CONFIG_HOME:-$HOME/.config}/pat/config.json
+	fi
+	if [ ! -f "$FIG" ]; then
+		echo "ERROR: Pat did not create $FIG" >&2
+		return 1
+	fi
+
+	sed -i "s/\"mycall\": \".*\",/\"mycall\": \"${CALL}\",/" "${FIG}"
+	WL2KPASS=$(grep "WL2KPASS" "${BAPDIR}/cache/config.txt" | sed 's/"//g' | sed 's/WL2KPASS=//')
+	sed -i "s/\"secure_login_password\": \".*\",/\"secure_login_password\": \"$WL2KPASS\",/" "${FIG}"
+	sed -i "s/\"locator\": \".*\",/\"locator\": \"$GRID\",/" "${FIG}"
+	#Kept on 127.0.0.1. See https://github.com/km4ack/pi-build/issues/299
+	sed -i "s/\"http_addr\": \".*\",/\"http_addr\": \"127.0.0.1:$PORT\",/" "${FIG}"
+	if jq '.ax25.rig = "my-rig" | .varafm.rig = "my-rig" | .varahf.rig = "my-rig" | .ardop.rig = "my-rig"
+		| .varafm.ptt_ctrl = true | .varahf.ptt_ctrl = true
+		| .hamlib_rigs = {"my-rig": {"address": "127.0.0.1:4532", "network": "tcp"}}' "${FIG}" >"${FIG}.new"; then
+		mv "${FIG}.new" "${FIG}"
+	else
+		rm -f "${FIG}.new"
+		echo "WARNING: could not add rig settings to ${FIG}"
+	fi
+	sed -i 's/"enable_http": false,/"enable_http": true,/' "${FIG}"
+	sudo systemctl start "pat@${WHO}"
+
+	if [ -f "${DIR}/config.json" ]; then
+		mkdir -p "${HOME}/.wl2k"
+		mv "${DIR}/config.json" "${HOME}/.wl2k/"
+	fi
+}
+
+
+VERSION(){
+	if [ "$(getconf LONG_BIT)" = 64 ]; then PATARCH=arm64; else PATARCH=armhf; fi
+	NEWVER=$(curl --max-time 20 -fsSL https://api.github.com/repos/la5nta/pat/releases/latest 2>/dev/null \
+		| grep -oE "pat_[0-9.]+_linux_${PATARCH}\\.deb" | head -1 | sed "s/pat_//;s/_linux_${PATARCH}.deb//")
+	if ! hash pat 2>/dev/null; then
+		CURRENT=0
+	else
+		CURRENT=$(pat version | awk '{print $2}' | sed 's/v//')
+	fi
+	[ -z "$NEWVER" ] && NEWVER=$CURRENT
+}
+
+REMOVE(){
+	sudo killall pat
+	sudo dpkg --remove pat
+}

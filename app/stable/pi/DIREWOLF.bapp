@@ -1,0 +1,64 @@
+BAPP=4.0
+ID=DIREWOLF
+Name=direwolf
+Comment='Software TNC'
+Ver=1.6
+localVer=1.6
+
+INSTALL(){
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	# Same git build as upstream (it works on Trixie), plus failure checks and
+	# all cores. If the build fails, fall back to Debian's direwolf 1.7 package
+	# and seed ~/direwolf.conf from its sample config.
+	build_ok=0
+	if bap_apt_install git cmake build-essential libasound2-dev libudev-dev libavahi-client-dev; then
+		mkdir -p "${BUILDDIR}"
+		cd "${BUILDDIR}" || return 1
+		rm -rf "${BUILDDIR}/direwolf"
+		if git clone https://github.com/wb2osz/direwolf; then
+			mkdir -p "${BUILDDIR}/direwolf/build"
+			cd "${BUILDDIR}/direwolf/build" || return 1
+			cmake .. && make -j "${BAPCORE:-$(nproc)}" && sudo make install && make install-conf && build_ok=1
+		fi
+	fi
+	if [ "$build_ok" != 1 ]; then
+		echo "Direwolf source build failed; installing Debian direwolf package"
+		sudo apt-get install -y direwolf || return 1
+		if [ ! -f "${HOME}/direwolf.conf" ] && [ -f /usr/share/doc/direwolf/conf/direwolf.conf.gz ]; then
+			zcat /usr/share/doc/direwolf/conf/direwolf.conf.gz > "${HOME}/direwolf.conf"
+		fi
+	fi
+
+	if [ -f "${HOME}/direwolf.conf" ]; then
+		sed -i "s/N0CALL/${CALL}/" "${HOME}/direwolf.conf"
+		sed -i 's/# ADEVICE  plughw:1,0/ADEVICE  plughw:3,0/' "${HOME}/direwolf.conf"
+		sed -i '/#PTT\ \/dev\/ttyUSB0\ RTS/a #Uncomment line below for PTT with CAT through FLRIG\n#PTT RIG 2 localhost:4532' "${HOME}/direwolf.conf"
+	fi
+	echo "NOTE: ADEVICE is set to plughw:3,0. Check 'arecord -l' and edit ~/direwolf.conf"
+	echo "if your USB sound card is on a different card number."
+}
+
+VERSION(){
+	if hash direwolf 2>/dev/null; then
+		CURRENT=$(direwolf -v 2>&1 | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1)
+	else
+		CURRENT=0
+	fi
+	if dpkg -s direwolf >/dev/null 2>&1; then
+		NEWVER=$(apt-cache policy direwolf | awk '/Candidate:/{print $2}' | sed 's/[+~-].*//')
+		CURRENT=$(dpkg-query -W -f='${Version}' direwolf | sed 's/[+~-].*//')
+	else
+		NEWVER=$CURRENT
+	fi
+}
+
+REMOVE(){
+	if dpkg -s direwolf >/dev/null 2>&1; then
+		sudo apt-get remove -y direwolf
+	fi
+	sudo rm -f /usr/local/bin/direwolf /usr/local/bin/decode_aprs /usr/local/bin/gen_packets
+}

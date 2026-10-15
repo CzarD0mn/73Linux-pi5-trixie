@@ -1,0 +1,45 @@
+BAPP=4.0
+ID=JS8
+Name=JS8Call
+Comment='Weak Signal Digital Mode'
+Ver=Update:1
+localVer=0
+
+
+INSTALL(){
+	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/trixie-apt.sh"
+	fi
+
+	# files.js8call.com is gone and the JS8Call GitHub releases (2.3.x) only
+	# ship x86_64/amd64/Windows/macOS builds. Debian Trixie packages JS8Call
+	# 2.2.0 for arm64, so install that.
+	if ! hash rigctl 2>/dev/null; then
+		# subshell so HAMLIB's INSTALL/VERSION do not replace ours
+		( source "${BAPDIR}/app/stable/pi/HAMLIB.bapp" && INSTALL )
+	fi
+	if bap_pkg_available js8call; then
+		sudo apt-get install -y js8call
+		return $?
+	fi
+	bap_unsupported JS8Call "No js8call package in the configured apt repositories" \
+		"and no arm64 build is published upstream."
+}
+
+
+VERSION(){
+	if hash js8call 2>/dev/null; then
+		CURRENT=$(dpkg-query -W -f='${Version}' js8call 2>/dev/null | sed 's/[+-].*//')
+		[ -z "$CURRENT" ] && CURRENT=1
+	else
+		CURRENT=0
+	fi
+	NEWVER=$(apt-cache policy js8call 2>/dev/null | awk '/Candidate:/{print $2}' | sed 's/[+-].*//')
+	[ -z "$NEWVER" ] || [ "$NEWVER" = "(none)" ] && NEWVER=$CURRENT
+}
+
+REMOVE(){
+	sudo apt-get remove -y js8call 2>/dev/null || true
+	sudo rm -f /usr/local/bin/js8call /usr/local/bin/js8 /usr/share/applications/js8call.desktop
+}
