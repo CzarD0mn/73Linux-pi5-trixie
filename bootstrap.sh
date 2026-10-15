@@ -13,6 +13,19 @@ if [ -z "${HOME:-}" ] || [ "$HOME" = "/" ] || [ "$HOME" = "/root" ]; then
   exit 1
 fi
 
+# Arch-only branch: refuse Debian / apt systems up front.
+if ! grep -qE '^(ID=("?)(arch|archarm|manjaro|manjaro-arm|endeavouros|garuda|artix|cachyos)("?)$|ID_LIKE=.*arch)' /etc/os-release 2>/dev/null; then
+  echo "This is the arch-pacman branch of 73Linux-pi5-trixie."
+  echo "It only supports Arch-based systems (Arch Linux ARM, Manjaro ARM, ...)"
+  echo "and installs with pacman/yay, never apt."
+  echo "For Debian / Raspberry Pi OS use the trixie-all-apps branch."
+  exit 1
+fi
+if ! command -v git >/dev/null 2>&1; then
+  echo "git is missing. Install it with: sudo pacman -S --needed git"
+  exit 1
+fi
+
 DEST="$HOME/73Linux"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
@@ -24,12 +37,14 @@ if [ ! -d "$DEST/.git" ] && [ ! -f "$DEST/73.sh" ]; then
   git clone https://github.com/km4ack/73Linux.git "$DEST"
 fi
 
-echo "Applying Pi 5 / Trixie patches"
+echo "Applying Arch (pacman/yay) patches"
 mkdir -p "$DEST/bin" "$DEST/app/stable/pi" "$DEST/app/community/pi"
 cp -a "$HERE/.pi5-trixie-fork" "$DEST/"
-cp -a "$HERE/PI5_TRIXIE.md" "$DEST/"
-cp -a "$HERE/bin/trixie-apt.sh" "$DEST/bin/"
-chmod +x "$DEST/bin/trixie-apt.sh"
+cp -a "$HERE/ARCH.md" "$DEST/"
+cp -a "$HERE/bin/arch-pkg.sh" "$DEST/bin/"
+chmod +x "$DEST/bin/arch-pkg.sh"
+# Remove the old Debian helper if an earlier Trixie bootstrap left it behind
+rm -f "$DEST/bin/trixie-apt.sh"
 
 if [ -f "$HERE/73.sh" ]; then
   cp -a "$HERE/73.sh" "$DEST/73.sh"

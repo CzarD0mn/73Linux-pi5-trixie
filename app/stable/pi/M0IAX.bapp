@@ -7,15 +7,15 @@ localVer=0
 
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
 	# The old JS8CallUtils_RaspberryPi.zip (m0iax.com) is a 2020 32-bit build and
 	# the site no longer serves it. Run JS8CallUtilities_V2 from source in a
-	# Python venv (PEP 668 blocks system-wide pip on Trixie).
-	bap_apt_install git python3 python3-venv python3-tk python3-gps || return 1
+	# Python venv (PEP 668 blocks system-wide pip on Arch).
+	bap_pkg_install git python3 python3-venv python3-tk python3-gps || return 1
 	APPDIR=${HOME}/.local/share/m0iax-js8callutils
 	if [ -d "$APPDIR/src/.git" ]; then
 		git -C "$APPDIR/src" pull --ff-only

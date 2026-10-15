@@ -7,9 +7,9 @@ localVer=0
 
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
 	# Native aarch64 build from G8BPQ (piQtSoundModem64) instead of the 32-bit
@@ -17,12 +17,12 @@ INSTALL(){
 	BETA=https://www.cantab.net/users/john.wiseman/Downloads/Beta
 	if [ "$(getconf LONG_BIT)" = 64 ]; then
 		BIN=piQtSoundModem64
-		bap_apt_install libqt5core5a libqt5gui5 libqt5network5 libqt5widgets5 \
+		bap_pkg_install libqt5core5a libqt5gui5 libqt5network5 libqt5widgets5 \
 			libqt5serialport5 libqt5multimedia5 libqt5multimedia5-plugins \
 			libasound2 libasound2-plugins libfftw3-single3 libpulse0
 	else
 		BIN=piQtSoundModem
-		sudo apt-get install -y libqt5serialport5 libqt5multimedia5 libfftw3-single3
+		bap_pkg_install libqt5serialport5 libqt5multimedia5 libfftw3-single3
 	fi
 	mkdir -p "${HOME}/Downloads"
 	cd "${HOME}/Downloads" || return 1

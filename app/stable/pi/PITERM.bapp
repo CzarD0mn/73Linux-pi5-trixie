@@ -7,24 +7,24 @@ localVer=1
 
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
 	# G8BPQ publishes a native aarch64 build (piQtTermTCP64). Upstream installed
-	# the 32-bit binary plus an armhf Qt5 stack (libasound2:armhf etc., renamed
-	# to *t64 on Trixie). Native is simpler and avoids multiarch entirely.
+	# the 32-bit binary plus an armhf Qt5 stack. Native aarch64 + qt5 from
+	# pacman avoids multiarch entirely.
 	BETA=https://www.cantab.net/users/john.wiseman/Downloads/Beta
 	mkdir -p "${BUILDDIR}"
 	cd "${BUILDDIR}" || return 1
 	if [ "$(getconf LONG_BIT)" = 64 ]; then
 		BIN=piQtTermTCP64
-		bap_apt_install libqt5core5a libqt5gui5 libqt5network5 libqt5widgets5 \
+		bap_pkg_install libqt5core5a libqt5gui5 libqt5network5 libqt5widgets5 \
 			libqt5serialport5 libqt5multimedia5 libqt5multimedia5-plugins
 	else
 		BIN=piQtTermTCP
-		sudo apt-get install -y libqt5serialport5 libqt5multimedia5
+		bap_pkg_install libqt5serialport5 libqt5multimedia5
 	fi
 	wget --tries 2 --connect-timeout=60 -O piQtTermTCP "${BETA}/${BIN}" || return 1
 	chmod +x piQtTermTCP

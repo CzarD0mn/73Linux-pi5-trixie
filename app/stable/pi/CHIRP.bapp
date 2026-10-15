@@ -7,8 +7,13 @@ localVer=0
 
 
 INSTALL(){
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/arch-pkg.sh"
+	fi
 	cd ${BAPSRC} || return
-	sudo apt install -y libfuse2t64 fuse3 || sudo apt install -y libfuse2 fuse3
+	# AppImage runtime: fuse2 (libfuse.so.2) plus fuse3 for fusermount3
+	bap_pkg_install fuse2 fuse3 || return 1
 	CHIRPDATE=$(curl -s https://github.com/goldstar611/chirp-appimage | grep "releases/tag/" | sed 's|.*releases/tag/||;s|">||')
 
 	if [ `getconf LONG_BIT` = '32' ]; then

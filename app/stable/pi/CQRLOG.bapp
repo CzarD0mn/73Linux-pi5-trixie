@@ -7,20 +7,20 @@ localVer=0
 
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
-	# Upstream built from git with Lazarus 2.2 / lcl-2.2, which Trixie no longer
-	# ships (it has lazarus-4.0). Debian packages CQRLOG itself, so use that.
+	# Arch: cqrlog from the AUR via yay; source build with pacman's Lazarus
+	# as a fallback.
 	if bap_pkg_available cqrlog; then
-		sudo apt-get install -y cqrlog
+		bap_pkg_install cqrlog
 		return $?
 	fi
 
-	echo "Debian cqrlog package not found; building from source with the distro Lazarus"
-	bap_apt_install_available git build-essential lazarus lcl-gtk2 fpc fp-units-misc \
+	echo "cqrlog package not installable; building from source with the distro Lazarus"
+	bap_pkg_install_available git build-essential lazarus lcl-gtk2 fpc fp-units-misc \
 		libssl-dev libmariadb-dev-compat default-mysql-client-core default-mysql-server \
 		default-mysql-server-core libnetpbm11 || return 1
 	rm -rf "${BUILDDIR}/cqrlog"
@@ -49,8 +49,8 @@ VERSION(){
 }
 
 REMOVE(){
-	if dpkg -s cqrlog >/dev/null 2>&1; then
-		sudo apt-get remove -y cqrlog
+	if bap_pkg_installed cqrlog; then
+		bap_pkg_remove cqrlog
 	else
 		sudo rm -rf /usr/share/cqrlog
 		sudo rm -f /usr/bin/cqrlog

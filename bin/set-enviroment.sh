@@ -40,13 +40,20 @@ case "$arch" in
 		;;
 esac
 
+ID_LIKE_VAL=$(sed -n 's/^ID_LIKE=//p' /etc/os-release | tr -d '"')
 case "$distribution" in
-	raspbian|debian|linuxmint|ubuntu|raspios)
-		echo "Distribution $distribution $version accepted"
+	arch|archarm|manjaro|manjaro-arm|endeavouros|garuda|artix|cachyos)
+		echo "Distribution $distribution $version accepted (Arch-based)"
 		;;
 	*)
-		echo "Possibly unsupported: $distribution $version on $arch with $cpu cores"
-		echo "Continuing anyway (Pi 5 / Debian Trixie fork)"
+		case " $ID_LIKE_VAL " in
+			*" arch "*) echo "Distribution $distribution (ID_LIKE=$ID_LIKE_VAL) accepted (Arch-based)" ;;
+			*)
+				echo "Unsupported: $distribution $version on $arch."
+				echo "This 73Linux branch only supports Arch-based systems (pacman/yay)."
+				exit 1
+				;;
+		esac
 		;;
 esac
 
@@ -54,7 +61,7 @@ if [ -f /proc/device-tree/model ]; then
 	MODEL=$(tr -d '\0' </proc/device-tree/model)
 	echo "Board: $MODEL"
 	if echo "$MODEL" | grep -qi "Raspberry Pi"; then
-		distribution="debian-rpi"
+		distribution="arch-rpi"
 	fi
 fi
 

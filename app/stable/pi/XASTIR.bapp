@@ -7,19 +7,18 @@ localVer=2.1.7
 
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
-	# Upstream built from git and needed libpcre3-dev, which Trixie removed.
-	# Debian Trixie packages Xastir 2.2.0 for arm64, so use that. Set
-	# XASTIR_FROM_SOURCE=1 to build git master instead (uses libpcre2-dev).
+	# Arch: xastir from the AUR via yay. Set XASTIR_FROM_SOURCE=1 to build
+	# git master with pacman build deps instead.
 	if [ "${XASTIR_FROM_SOURCE:-0}" != 1 ] && bap_pkg_available xastir; then
-		sudo apt-get install -y xastir
+		bap_pkg_install xastir
 		return $?
 	fi
-	bap_apt_install_available build-essential automake git xorg-dev libmotif-dev graphicsmagick \
+	bap_pkg_install_available base-devel automake git xorg-dev libmotif-dev graphicsmagick \
 		gv libcurl4-openssl-dev shapelib libshp-dev libpcre3-dev libproj-dev libdb-dev python-dev-is-python3 \
 		libax25-dev libwebp-dev libgraphicsmagick1-dev festival festival-dev || return 1
 	mkdir -p "${BUILDDIR}"
@@ -52,17 +51,17 @@ VERSION(){
 		CURRENT=0
 	else
 		CURRENT=$(xastir -V 2>/dev/null | awk '{print $2}' | sed 's/V//' | sed '/^[[:space:]]*$/d' | head -1)
-		if dpkg -s xastir >/dev/null 2>&1; then
-			# Debian package: track the apt candidate, not git releases
-			NEWVER=$(apt-cache policy xastir | awk '/Candidate:/{print $2}' | sed 's/[-+].*//')
-			CURRENT=$(dpkg-query -W -f='${Version}' xastir | sed 's/[-+].*//')
+		if bap_pkg_installed xastir; then
+			# Packaged install: track the pacman/AUR version, not git releases
+			NEWVER=$(bap_pkg_candidate xastir | sed 's/[-+].*//')
+			CURRENT=$(bap_pkg_version xastir | sed 's/[-+].*//')
 		fi
 	fi
 }
 
 REMOVE(){
-	if dpkg -s xastir >/dev/null 2>&1; then
-		sudo apt-get remove -y xastir
+	if bap_pkg_installed xastir; then
+		bap_pkg_remove xastir
 	fi
 	sudo rm -f /usr/local/bin/xastir /usr/share/applications/xastir.desktop
 }

@@ -7,14 +7,15 @@ localVer=1
 
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
-	# "wwl" is in Debian (main); keep apt instead of the script's self-download
-	# from www.db.net, which is outside Debian and often unreachable.
-	bap_apt_install wwl bc yad || return 1
+	# bc and yad from pacman. "wwl" is not in the Arch repos; install it if a
+	# package exists (AUR), otherwise grid-calc downloads it itself.
+	bap_pkg_install bc yad || return 1
+	bap_pkg_install_available wwl || true
 	mkdir -p "${HOME}/bin"
 	cd "${HOME}/bin" || return 1
 	wget --tries 2 --connect-timeout=60 https://raw.githubusercontent.com/km4ack/pi-scripts/master/grid-calc || return 1

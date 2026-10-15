@@ -7,19 +7,19 @@ localVer=REPO
 
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
 	if ! hash conky 2>/dev/null; then
-		# "conky" is a virtual package on Trixie; the helper picks conky-std.
-		bap_apt_install conky
+		# conky from the official Arch repos.
+		bap_pkg_install conky
 	fi
 	mkdir -p "${HOME}/Documents" "${HOME}/.config/autostart" "${HOME}/.local/share/applications"
 	touch "${HOME}/Documents/mylog.txt"  #conky will fail to load if this file doesn't exist
 	[ -f /var/lib/misc/dnsmasq.leases ] || sudo touch /var/lib/misc/dnsmasq.leases #conky will fail to load if this file doesn't exist
-	sudo apt-get install -y ruby gpsd-clients
+	bap_pkg_install ruby gpsd-clients
 	sudo gem install gpsd_client
 	sudo gem install maidenhead
 	mkdir -p "${HOME}/bin/conky"
@@ -78,7 +78,7 @@ VERSION(){
 }
 
 REMOVE(){
-		sudo apt purge -y conky conky-std
+		bap_pkg_remove conky conky-std
 		rm ${HOME}/.config/autostart/conky.desktop
 		rm ${HOME}/.local/share/applications/setconky.desktop
 		rm ${HOME}/.local/share/applications/conky.desktop

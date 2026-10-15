@@ -7,6 +7,15 @@ localVer=0
 
 
 INSTALL(){
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
+		# shellcheck disable=SC1091
+		source "${BAPDIR}/bin/arch-pkg.sh"
+	fi
+	# Arch ships hamlib in the official repos; use it when available.
+	if [ "${HAMLIB_FROM_SOURCE:-0}" != 1 ] && bap_pkg_install hamlib; then
+		return 0
+	fi
+	echo "hamlib package install failed; building from source"
 	CLEANSOURCE(){
 		PACKAGE=$(ls ${HOME}/.bap-source-files | grep ${PACKAGE})
 		echo "package is $PACKAGE"
@@ -22,7 +31,7 @@ INSTALL(){
 
     PACKAGE=hamlib
     CLEANSOURCE
-    sudo apt install -y libusb-1.0-0 libusb-1.0-0-dev swig libxml2-dev python3-dev python3-setuptools
+    bap_pkg_install base-devel libusb swig libxml2 python python-setuptools
     pyver=$(python3 -V | awk '{print $2}' | awk -F. '{print $1"."$2}')
     cd ${BUILDDIR} || return
     NEWRIG=$(curl -s https://sourceforge.net/projects/hamlib/files/latest/download |

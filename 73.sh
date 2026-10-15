@@ -27,12 +27,22 @@ export BUILDDIR
 export LOGO
 export BAPDIR
 
-# Trixie / Pi 5 package name helpers
-if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+# Arch Linux (pacman / yay) package helpers
+if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 	# shellcheck disable=SC1091
-	source "${BAPDIR}/bin/trixie-apt.sh"
-	export -f bap_pkg_available bap_resolve_pkg bap_apt_install bap_download_w1hkj 2>/dev/null || true
+	source "${BAPDIR}/bin/arch-pkg.sh"
+	# Export every bap_* helper so app-check / menu / VERSION / REMOVE see them.
+	for _f in $(declare -F | awk '{print $3}' | grep '^bap_'); do
+		export -f "$_f"
+	done
+	unset _f
+else
+	echo "ERROR: ${BAPDIR}/bin/arch-pkg.sh is missing. Re-run bootstrap.sh." >&2
+	exit 1
 fi
+
+# This branch is Arch-only and never uses apt.
+bap_require_arch || exit 1
 
 if [ ! -d ${BAPDIR}/cache ]; then
 	mkdir ${BAPDIR}/cache
@@ -42,7 +52,7 @@ echo "#############################"
 echo "Checking for 73 Linux Updates"
 echo "#############################"
 if [ -f "${BAPDIR}/.pi5-trixie-fork" ]; then
-	echo "Pi 5 / Trixie fork detected - skipping upstream self-replace"
+	echo "Arch/pacman fork detected - skipping upstream self-replace"
 	LATEST=0
 	CURRENT=1
 else
@@ -124,31 +134,25 @@ if [ `whoami` = 'root' ]; then
 fi
 
 echo "#######################################"
-echo "#  Updating repository & verifying    #"
+echo "#  Syncing pacman & verifying         #"
 echo "#  a few needed items needed before   #"
 echo "#  we begin.                          #"
 echo "#  Package installs may ask for sudo. #"
 echo "#  set-enviroment.sh does not use it. #"
 echo "#######################################"
 if hash sudo 2>/dev/null; then
-	sudo apt update
-	sudo apt install -y curl wget ca-certificates build-essential cmake pkg-config \
-		python3-dev python3-setuptools python3-pip python3-venv fuse3 || true
-	if ! hash yad 2>/dev/null; then
-		sudo apt install -y yad
-	fi
-	if ! hash jq 2>/dev/null; then
-		sudo apt install -y jq
-	fi
-	if ! hash bc >/dev/null; then
-		sudo apt install -y bc
-	fi
-	if ! hash git >/dev/null; then
-		sudo apt install -y git
+	# Sync package databases, then install base tools from the official repos.
+	sudo pacman -Sy --noconfirm || true
+	bap_pkg_install curl wget ca-certificates base-devel cmake pkgconf \
+		python python-setuptools python-pip fuse3 yad jq bc git || true
+	if ! command -v yay >/dev/null 2>&1; then
+		echo "NOTE: yay (AUR helper) is not installed. Apps from the AUR"
+		echo "(js8call, trustedqsl, direwolf, xastir, cqrlog, flrig, ...) need it."
+		bap_need_yay_msg
 	fi
 else
 	echo "sudo is not available; skipping package installs."
-	echo "Install yad jq bc git curl wget yourself if they are missing."
+	echo "Install with: sudo pacman -S --needed yad jq bc git curl wget"
 fi
 
 touch $HOME/.config/KM4ACK

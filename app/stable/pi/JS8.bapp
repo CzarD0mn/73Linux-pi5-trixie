@@ -7,39 +7,37 @@ localVer=0
 
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
-	# files.js8call.com is gone and the JS8Call GitHub releases (2.3.x) only
-	# ship x86_64/amd64/Windows/macOS builds. Debian Trixie packages JS8Call
-	# 2.2.0 for arm64, so install that.
+	# files.js8call.com is gone and upstream publishes no aarch64 binary.
+	# Arch: js8call comes from the AUR (yay builds it from source).
 	if ! hash rigctl 2>/dev/null; then
 		# subshell so HAMLIB's INSTALL/VERSION do not replace ours
 		( source "${BAPDIR}/app/stable/pi/HAMLIB.bapp" && INSTALL )
 	fi
-	if bap_pkg_available js8call; then
-		sudo apt-get install -y js8call
-		return $?
+	if bap_pkg_install js8call; then
+		return 0
 	fi
-	bap_unsupported JS8Call "No js8call package in the configured apt repositories" \
-		"and no arm64 build is published upstream."
+	bap_unsupported JS8Call "js8call could not be installed from pacman or the AUR (yay)." \
+		"Install yay (see ARCH.md) and retry; upstream ships no aarch64 binary."
 }
 
 
 VERSION(){
 	if hash js8call 2>/dev/null; then
-		CURRENT=$(dpkg-query -W -f='${Version}' js8call 2>/dev/null | sed 's/[+-].*//')
+		CURRENT=$(bap_pkg_version js8call | sed 's/[+-].*//')
 		[ -z "$CURRENT" ] && CURRENT=1
 	else
 		CURRENT=0
 	fi
-	NEWVER=$(apt-cache policy js8call 2>/dev/null | awk '/Candidate:/{print $2}' | sed 's/[+-].*//')
-	[ -z "$NEWVER" ] || [ "$NEWVER" = "(none)" ] && NEWVER=$CURRENT
+	NEWVER=$(bap_pkg_candidate js8call | sed 's/[+-].*//')
+	[ -z "$NEWVER" ] && NEWVER=$CURRENT
 }
 
 REMOVE(){
-	sudo apt-get remove -y js8call 2>/dev/null || true
+	bap_pkg_remove js8call 2>/dev/null || true
 	sudo rm -f /usr/local/bin/js8call /usr/local/bin/js8 /usr/share/applications/js8call.desktop
 }

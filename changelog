@@ -1,4 +1,5 @@
-version=4.1.15
+version=4.2.0
+4.2.0   Arch Linux ARM branch: pacman/yay only, no apt (see ARCH.md, CHANGELOG.fork.md)
 4.1.15  Patch the remaining Raspberry Pi installers for Trixie / arm64 (see CHANGELOG.fork.md)
 4.1.14  Unofficial Pi 5 / Debian 13 (Trixie) fork of km4ack/73Linux 4.1.13
         Restore Raspberry Pi (aarch64) support dropped upstream in 4.1.9

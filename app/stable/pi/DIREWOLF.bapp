@@ -6,16 +6,16 @@ Ver=1.6
 localVer=1.6
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
-	# Same git build as upstream (it works on Trixie), plus failure checks and
-	# all cores. If the build fails, fall back to Debian's direwolf 1.7 package
+	# Same git build as upstream, plus failure checks and all cores. If the
+	# build fails, fall back to the AUR direwolf package (yay)
 	# and seed ~/direwolf.conf from its sample config.
 	build_ok=0
-	if bap_apt_install git cmake build-essential libasound2-dev libudev-dev libavahi-client-dev; then
+	if bap_pkg_install git cmake build-essential libasound2-dev libudev-dev libavahi-client-dev; then
 		mkdir -p "${BUILDDIR}"
 		cd "${BUILDDIR}" || return 1
 		rm -rf "${BUILDDIR}/direwolf"
@@ -26,8 +26,8 @@ INSTALL(){
 		fi
 	fi
 	if [ "$build_ok" != 1 ]; then
-		echo "Direwolf source build failed; installing Debian direwolf package"
-		sudo apt-get install -y direwolf || return 1
+		echo "Direwolf source build failed; installing AUR direwolf package"
+		bap_pkg_install direwolf || return 1
 		if [ ! -f "${HOME}/direwolf.conf" ] && [ -f /usr/share/doc/direwolf/conf/direwolf.conf.gz ]; then
 			zcat /usr/share/doc/direwolf/conf/direwolf.conf.gz > "${HOME}/direwolf.conf"
 		fi
@@ -48,17 +48,17 @@ VERSION(){
 	else
 		CURRENT=0
 	fi
-	if dpkg -s direwolf >/dev/null 2>&1; then
-		NEWVER=$(apt-cache policy direwolf | awk '/Candidate:/{print $2}' | sed 's/[+~-].*//')
-		CURRENT=$(dpkg-query -W -f='${Version}' direwolf | sed 's/[+~-].*//')
+	if bap_pkg_installed direwolf; then
+		NEWVER=$(bap_pkg_candidate direwolf | sed 's/[+~-].*//')
+		CURRENT=$(bap_pkg_version direwolf | sed 's/[+~-].*//')
 	else
 		NEWVER=$CURRENT
 	fi
 }
 
 REMOVE(){
-	if dpkg -s direwolf >/dev/null 2>&1; then
-		sudo apt-get remove -y direwolf
+	if bap_pkg_installed direwolf; then
+		bap_pkg_remove direwolf
 	fi
 	sudo rm -f /usr/local/bin/direwolf /usr/local/bin/decode_aprs /usr/local/bin/gen_packets
 }

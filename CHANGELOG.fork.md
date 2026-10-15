@@ -1,7 +1,7 @@
-# 73Linux Pi 5 / Trixie fork changelog
+# 73Linux Pi fork changelog
 
 Unofficial fork of [km4ack/73Linux](https://github.com/km4ack/73Linux) 4.1.13.
-First line of `changelog` is `version=4.1.14` so 73.sh can read a version string.
+First line of `changelog` is `version=4.2.0` so 73.sh can read a version string.
 
 ## 4.1.14 — 2026-09-04
 
@@ -95,3 +95,39 @@ unsupported by KM4ACK.
 ### Verified unchanged
 AX25, BATT, DIPOLE, GPREDICT, GPSUPDATE, PATMENU, PIQSO, SECURITY, SHOWLOG,
 XYGRIB and the three community apps (CHECK, DASHBOARD, SPOT_POTA).
+
+## 4.2.0 — 2026-10-15 (arch-pacman branch)
+
+This branch targets **Arch-based aarch64** (Arch Linux ARM, Manjaro ARM, ...),
+not Debian Trixie. It installs only with `pacman` and `yay`.
+
+### Package manager
+- `bin/trixie-apt.sh` replaced by `bin/arch-pkg.sh`; the old file is deleted
+  and `bootstrap.sh` removes a leftover copy from earlier installs.
+- `bap_pkg_install` runs `sudo pacman -S --needed --noconfirm` for repo
+  packages and `yay -S --needed --noconfirm` for AUR packages. If yay is
+  missing it prints install steps for yay and fails (no other AUR helper).
+- `bap_resolve_pkg` maps Debian names to Arch (build-essential→base-devel,
+  `*-dev`→Arch libs, php8.x→php, default-jre→jre-openjdk, conky-std→conky,
+  libfuse2t64→fuse2, Qt5 libs→qt5-base, ...). Table in `ARCH.md`.
+- Removed every apt / apt-get / apt-cache / dpkg / dpkg-query call, the
+  armhf multiarch path, the `*t64` rename logic and `.deb` installs.
+- VERSION / REMOVE use `pacman -Q`, `pacman -Si` and `pacman -R` wrappers.
+
+### OS detection
+- `bootstrap.sh`, `73.sh` and `set-enviroment.sh` read `/etc/os-release`
+  (`ID` arch/archarm/manjaro/endeavouros/... or `ID_LIKE` containing arch)
+  and stop with a message on Debian / Raspberry Pi OS.
+- `73.sh` exports all `bap_*` helpers so app-check, VERSION and REMOVE can use them.
+
+### Apps
+- **AUR via yay:** js8call, trustedqsl, cqrlog, xastir, plus fallbacks for
+  flrig, direwolf and wsjtx (when the ALARM repo has no aarch64 build).
+- **GridTracker** installs the official `GridTracker2-*-aarch64.pacman`.
+- **Pat** installs the `linux_arm64.tar.gz` binary and writes `pat@.service`.
+- **WSJT-X** uses the `wsjtx` package instead of the upstream `.deb`.
+- **HAMLIB** uses `pacman -S hamlib` (source build fallback).
+- **RepeaterSTART** unpacks its arch-independent package with `bsdtar`.
+- **VARA** unsupported (Pi-Apps is Debian-only). **PISTATS** still
+  unsupported. BPQ's 32-bit `piBPQConfigGen` cannot run (no armhf multiarch).
+- `PI5_TRIXIE.md` renamed to `ARCH.md`.

@@ -7,18 +7,17 @@ localVer=0
 
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
-	# openjdk-10-dbg has not existed in Debian for years and made the whole
-	# apt line fail on Trixie. Use default-jre (OpenJDK 21 on Trixie).
+	# Java runtime: jre-openjdk from pacman; java-rxtx for serial ports.
 	mkdir -p "${BUILDDIR}"
 	cd "${BUILDDIR}" || return 1
 	rm -f YAAC.zip
 	wget --tries 2 --connect-timeout=60 https://www.ka2ddo.org/ka2ddo/YAAC.zip || return 1
-	bap_apt_install_available librxtx-java default-jre unzip
+	bap_pkg_install_available librxtx-java default-jre unzip
 	mkdir -p "${HOME}/YAAC"
 	cd "${HOME}/YAAC" || return 1
 	#Fix issue 375 to prevent YAAC from reopening

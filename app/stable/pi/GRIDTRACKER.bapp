@@ -7,30 +7,30 @@ localVer=1.22.1010
 
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
-	# The old GridTracker 1.x NW.js tarballs (Dropbox links) need libgconf-2-4,
-	# which Trixie removed. GridTracker 2 ships an official arm64 .deb.
+	# GridTracker 2 publishes an official aarch64 Arch package (.pacman);
+	# install it with pacman -U.
 	GT_PAGE=https://gridtracker.org/index.php/downloads/gridtracker-downloads
 	if [ "$(getconf LONG_BIT)" != 64 ]; then
 		bap_unsupported GridTracker "GridTracker 2 only publishes arm64 (64-bit) Linux builds."
 		return 1
 	fi
 	GTURL=$(curl -fsSL -A "Mozilla/5.0" --max-time 30 "$GT_PAGE" \
-		| grep -oE 'https://download2\.gridtracker\.org/GridTracker2-[0-9.]+-arm64\.deb' | sort -V | tail -1)
+		| grep -oE 'https://download2\.gridtracker\.org/GridTracker2-[0-9.]+-aarch64\.pacman' | sort -V | tail -1)
 	if [ -z "$GTURL" ]; then
-		echo "ERROR: could not find the GridTracker2 arm64 .deb on $GT_PAGE" >&2
+		echo "ERROR: could not find the GridTracker2 aarch64 .pacman package on $GT_PAGE" >&2
 		return 1
 	fi
 	mkdir -p "${BUILDDIR}"
 	cd "${BUILDDIR}" || return 1
-	GTDEB=${GTURL##*/}
-	wget --tries 2 --connect-timeout=60 -O "$GTDEB" "$GTURL" || return 1
-	bap_install_deb "$GTDEB" || return 1
-	rm -f "$GTDEB"
+	GTPKG=${GTURL##*/}
+	wget --tries 2 --connect-timeout=60 -O "$GTPKG" "$GTURL" || return 1
+	sudo pacman -U --needed --noconfirm "${BUILDDIR}/${GTPKG}" || return 1
+	rm -f "$GTPKG"
 
 	# Retire the GridTracker 1.x install made by upstream 73Linux / BAP.
 	if [ -d "$HOME/GridTracker" ]; then
@@ -41,18 +41,19 @@ INSTALL(){
 
 
 VERSION(){
-	if dpkg -s gridtracker2 >/dev/null 2>&1; then
-		CURRENT=$(dpkg-query -W -f='${Version}' gridtracker2 | sed 's/-.*//')
+	GTNAME=$(pacman -Qq 2>/dev/null | grep -iE '^gridtracker2?$' | head -1)
+	if [ -n "$GTNAME" ]; then
+		CURRENT=$(bap_pkg_version "$GTNAME" | sed 's/-.*//')
 	else
 		CURRENT=0
 	fi
 	NEWVER=$(curl --max-time 20 -fsSL -A "Mozilla/5.0" https://gridtracker.org/index.php/downloads/gridtracker-downloads 2>/dev/null \
-		| grep -oE 'GridTracker2-[0-9.]+-arm64\.deb' | sort -V | tail -1 | sed 's/GridTracker2-//;s/-arm64.deb//')
+		| grep -oE 'GridTracker2-[0-9.]+-aarch64\.pacman' | sort -V | tail -1 | sed 's/GridTracker2-//;s/-aarch64.pacman//')
 	[ -z "$NEWVER" ] && NEWVER=$CURRENT
 }
 
 REMOVE(){
-	sudo apt-get remove -y gridtracker2 2>/dev/null || true
+	for p in $(pacman -Qq 2>/dev/null | grep -iE '^gridtracker2?$'); do sudo pacman -R --noconfirm "$p"; done
 	rm -rf "${HOME}/GridTracker"
 	sudo rm -f /usr/share/applications/gridtracker.desktop
 }

@@ -7,14 +7,15 @@ localVer=0
 
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
-	# The upstream wget hit the SourceForge HTML page for the .deb (no
-	# /download suffix) and dpkg -i did not pull dependencies.
-	bap_apt_install gir1.2-osmgpsmap-1.0 gir1.2-geoclue-2.0 libosmgpsmap-1.0-1 python3-gi python3-gi-cairo xdg-utils
+	# RepeaterSTART is only published as an architecture-independent (_all)
+	# Python .deb. On Arch, install the Python/GTK deps with pacman and unpack
+	# the .deb payload with bsdtar (libarchive, a pacman dependency). No dpkg.
+	bap_pkg_install libarchive gir1.2-osmgpsmap-1.0 gir1.2-geoclue-2.0 libosmgpsmap-1.0-1 python3-gi python3-gi-cairo xdg-utils
 	REPEAT_LATEST=$(curl -fsSL --max-time 30 https://sourceforge.net/projects/repeater-start/files/ \
 		| grep -oE 'repeater-start_[0-9.]+_all\.deb' | sort -V | tail -1)
 	if [ -z "$REPEAT_LATEST" ]; then
@@ -25,21 +26,37 @@ INSTALL(){
 	cd "${HOME}/Downloads" || return 1
 	wget --tries 2 --connect-timeout=60 -O "$REPEAT_LATEST" \
 		"https://sourceforge.net/projects/repeater-start/files/${REPEAT_LATEST}/download" || return 1
-	bap_install_deb "$REPEAT_LATEST" || return 1
-	rm -f "$REPEAT_LATEST"
+	RDIR=$(mktemp -d)
+	bsdtar -xf "$REPEAT_LATEST" -C "$RDIR" || { rm -rf "$RDIR"; return 1; }
+	DATA=$(ls "$RDIR"/data.tar.* 2>/dev/null | head -1)
+	[ -n "$DATA" ] || { echo "ERROR: no data.tar in $REPEAT_LATEST" >&2; rm -rf "$RDIR"; return 1; }
+	# Record installed files so REMOVE can undo them
+	mkdir -p "${BAPDIR:-$HOME/73Linux}/cache"
+	bsdtar -tf "$DATA" | sed 's|^\./|/|' | grep -v '/$' > "${BAPDIR:-$HOME/73Linux}/cache/repeater-start.files"
+	echo "${REPEAT_LATEST}" | sed 's/repeater-start_//;s/_all.deb//' > "${BAPDIR:-$HOME/73Linux}/cache/repeater-start.version"
+	sudo bsdtar -xpf "$DATA" -C / --no-same-owner || { rm -rf "$RDIR"; return 1; }
+	rm -rf "$RDIR" "$REPEAT_LATEST"
 }
 
 
 VERSION(){
+	NEWVER=$(curl -fsSL --max-time 20 https://sourceforge.net/projects/repeater-start/files/ 2>/dev/null \
+		| grep -oE 'repeater-start_[0-9.]+_all\.deb' | sort -V | tail -1 | sed 's/repeater-start_//;s/_all.deb//')
 	if [ -f /usr/bin/repeaterSTART ]; then
-		NEWVER=$(apt-cache show repeater-start | grep Version | sed 's/Version: //')
-		CURRENT=$(dpkg --list | grep repeater-start | awk '{print $3}')
+		CURRENT=$(cat "${BAPDIR}/cache/repeater-start.version" 2>/dev/null)
+		[ -z "$CURRENT" ] && CURRENT=1
 	else
 		CURRENT=0
-		NEWVER=$(apt-cache show repeater-start | grep Version | sed 's/Version: //')
 	fi
+	[ -z "$NEWVER" ] && NEWVER=$CURRENT
 }
 
 REMOVE(){
-	sudo dpkg --remove repeater-start
+	if [ -f "${BAPDIR}/cache/repeater-start.files" ]; then
+		xargs -r -d '
+' sudo rm -f < "${BAPDIR}/cache/repeater-start.files"
+		rm -f "${BAPDIR}/cache/repeater-start.files" "${BAPDIR}/cache/repeater-start.version"
+	else
+		sudo rm -f /usr/bin/repeaterSTART
+	fi
 }

@@ -7,21 +7,22 @@ localVer=0.12.1
 
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
 	# Pat 1.0.0 broke the upstream installer: it scraped the (now lazy-loaded)
 	# GitHub releases HTML and rebuilt the URL as v0.<x>, and parsed
 	# "pat version" assuming 0.x. Use the GitHub API and treat >= 0.12 / 1.x as
-	# the ~/.config/pat layout. Falls back to Debian's pat package.
+	# the ~/.config/pat layout. Arch: install the linux_arm64 tarball binary
+	# (or AUR "pat" via yay as a fallback) and write the pat@ systemd unit.
 	PORT=8080
 	DIR=${BUILDDIR}
 	mkdir -p "${DIR}"
 	cd "${DIR}" || return 1
 	WHO=$(whoami)
-	bap_apt_install jq curl
+	bap_pkg_install jq curl psmisc
 
 	if [ -f "${HOME}/.wl2k/config.json" ]; then
 		cp "${HOME}/.wl2k/config.json" "${DIR}/config.json"
@@ -34,13 +35,26 @@ INSTALL(){
 	else
 		PATARCH=armhf
 	fi
-	PATURL=$(bap_gh_asset_url la5nta/pat "pat_[0-9.]+_linux_${PATARCH}\\.deb$")
-	if [ -n "$PATURL" ] && wget --tries 2 --connect-timeout=60 -O "${DIR}/${PATURL##*/}" "$PATURL"; then
-		bap_install_deb "${DIR}/${PATURL##*/}" || return 1
-		rm -f "${DIR}/${PATURL##*/}"
-	else
-		echo "GitHub release download failed; installing Debian pat package"
-		sudo apt-get install -y pat || return 1
+	if ! bap_install_gh_binary la5nta/pat "pat_[0-9.]+_linux_${PATARCH}\.tar\.gz$" pat; then
+		echo "GitHub release download failed; trying AUR pat via yay"
+		bap_pkg_install pat || return 1
+	fi
+	if [ ! -f /etc/systemd/system/pat@.service ] && [ ! -f /usr/lib/systemd/system/pat@.service ]; then
+		PATBIN=$(command -v pat)
+		sudo tee /etc/systemd/system/pat@.service >/dev/null <<UNIT
+[Unit]
+Description=Pat Winlink client (%i)
+After=network.target
+
+[Service]
+User=%i
+ExecStart=${PATBIN} http
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+		sudo systemctl daemon-reload
 	fi
 
 	#lines below configure pat with user info (first run writes a default config)
@@ -92,7 +106,7 @@ INSTALL(){
 VERSION(){
 	if [ "$(getconf LONG_BIT)" = 64 ]; then PATARCH=arm64; else PATARCH=armhf; fi
 	NEWVER=$(curl --max-time 20 -fsSL https://api.github.com/repos/la5nta/pat/releases/latest 2>/dev/null \
-		| grep -oE "pat_[0-9.]+_linux_${PATARCH}\\.deb" | head -1 | sed "s/pat_//;s/_linux_${PATARCH}.deb//")
+		| grep -oE "pat_[0-9.]+_linux_${PATARCH}\\.tar\\.gz" | head -1 | sed "s/pat_//;s/_linux_${PATARCH}.tar.gz//")
 	if ! hash pat 2>/dev/null; then
 		CURRENT=0
 	else
@@ -103,5 +117,6 @@ VERSION(){
 
 REMOVE(){
 	sudo killall pat
-	sudo dpkg --remove pat
+	sudo rm -f /usr/local/bin/pat
+	bap_pkg_remove pat
 }

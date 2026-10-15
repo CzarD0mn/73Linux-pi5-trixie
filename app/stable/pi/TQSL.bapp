@@ -7,20 +7,18 @@ localVer=0
 
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
-	# Debian Trixie packages TrustedQSL (trustedqsl) for arm64; use it. The
-	# upstream source build needed libdb++-dev, which Trixie dropped
-	# (libdb5.3++-dev remains), so that path is kept only as a fallback.
-	if bap_pkg_available trustedqsl; then
-		sudo apt-get install -y trustedqsl
-		return $?
+	# Arch: trustedqsl from the AUR via yay. The ARRL source build with pacman
+	# deps (db, wxwidgets-gtk3, openssl, curl, expat, sqlite) is the fallback.
+	if bap_pkg_install trustedqsl; then
+		return 0
 	fi
-	bap_apt_install cmake g++ libexpat1-dev libssl-dev libdb++-dev libcurl4-openssl-dev \
-		libwxgtk3.2-dev sqlite3 libsqlite3-dev zlib1g-dev || return 1
+	echo "trustedqsl package install failed; building from ARRL source"
+	bap_pkg_install base-devel cmake expat openssl db curl wxwidgets-gtk3 sqlite zlib || return 1
 	mkdir -p "${BUILDDIR}"
 	cd "${BUILDDIR}" || return 1
 	rm -rf "${BUILDDIR}"/tqsl-*
@@ -44,8 +42,8 @@ VERSION(){
 }
 
 REMOVE(){
-	if dpkg -s trustedqsl >/dev/null 2>&1; then
-		sudo apt-get remove -y trustedqsl
+	if bap_pkg_installed trustedqsl; then
+		bap_pkg_remove trustedqsl
 	fi
 	sudo rm -f /usr/local/bin/tqsl /usr/share/applications/tqsl.desktop
 }

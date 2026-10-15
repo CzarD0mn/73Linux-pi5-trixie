@@ -7,48 +7,23 @@ localVer=0
 
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
-	# WSJT-X 3.x names its ARM package "wsjtx-<ver>-linux-aarch64.deb"; the
-	# upstream grep for "arm64.deb" found nothing. 3.0.1's aarch64 .deb depends
-	# on Qt5 *t64 + Boost 1.83, which Trixie provides. dpkg -i + --fix-broken is
-	# replaced by "apt-get install ./file.deb". Falls back to Debian's wsjtx.
-	mkdir -p "${BUILDDIR}"
-	cd "${BUILDDIR}" || return 1
+	# Arch: WSJT-X is packaged as "wsjtx" (official repos where built for
+	# aarch64, otherwise AUR via yay). Upstream ARM builds are .deb/.rpm only, so they are not used.
 	if [ -f /usr/local/bin/wsjtx ]; then
 		sudo rm -f /usr/local/bin/wsjtx*
 	fi
-	rm -rf "${HOME}"/.bap-source-files/wsjtx*
-
-	if [ "$(getconf LONG_BIT)" = 64 ]; then ARCH_RE='(arm64|aarch64)'; else ARCH_RE='armhf'; fi
-	FT8PKG=""
-	for wsjtx_version in $(curl -fsSL --max-time 30 https://sourceforge.net/projects/wsjt/files/ \
-		| grep -oE 'wsjtx-[0-9]+\.[0-9]+\.[0-9]+' | sort -uVr | head -3); do
-		FT8PKG=$(curl -fsSL --max-time 30 "https://sourceforge.net/projects/wsjt/files/${wsjtx_version}/" \
-			| grep -oE "wsjtx[-_][0-9.]+[-_](linux-)?${ARCH_RE}\\.deb" | head -1)
-		[ -n "$FT8PKG" ] && break
-	done
-
-	if [ -n "$FT8PKG" ] && wget --tries 2 --connect-timeout=60 -O "${BUILDDIR}/${FT8PKG}" \
-		"https://sourceforge.net/projects/wsjt/files/${wsjtx_version}/${FT8PKG}/download" \
-		&& bap_install_deb "${BUILDDIR}/${FT8PKG}"; then
-		mkdir -p "${HOME}/.bap-source-files"
-		touch "${HOME}/.bap-source-files/${FT8PKG}"
-		rm -f "${BUILDDIR}/${FT8PKG}"
-		return 0
-	fi
-	echo "WSJT-X .deb from SourceForge failed; installing Debian wsjtx package"
-	rm -f "${BUILDDIR}/${FT8PKG}"
-	sudo apt-get install -y wsjtx
+	bap_pkg_install wsjtx
 }
 
 
 VERSION(){
 	if hash wsjtx 2>/dev/null; then
-		CURRENT=$(dpkg-query -W -f='${Version}' wsjtx 2>/dev/null | sed 's/[-+~].*//')
+		CURRENT=$(bap_pkg_version wsjtx | sed 's/[-+~].*//')
 		[ -z "$CURRENT" ] && CURRENT=1
 	else
 		CURRENT=0
@@ -59,5 +34,5 @@ VERSION(){
 }
 
 REMOVE(){
-	sudo dpkg --remove wsjtx
+	bap_pkg_remove wsjtx
 }

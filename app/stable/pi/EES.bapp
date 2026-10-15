@@ -7,17 +7,17 @@ localVer=0
 
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
-	# php8.2 does not exist on Trixie; the helper resolves it to php8.4.
+	# Arch ships current PHP as "php".
 	if ! hash php 2>/dev/null; then
-		bap_apt_install php8.2
+		bap_pkg_install php8.2
 	fi
 	if ! hash ghostwriter 2>/dev/null; then
-		sudo apt-get install -y ghostwriter
+		bap_pkg_install ghostwriter
 	fi
 
 	mkdir -p "${BUILDDIR}"

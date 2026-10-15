@@ -7,14 +7,13 @@ localVer=0
 
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
 	# hamrs.app now publishes a native linux-arm64 AppImage. Use it on 64-bit
-	# Pi OS instead of the armv7l build + armhf multiarch stack (which needed
-	# libasound2/libgtk-3-0/libglib2.0-0:armhf, all renamed to *t64 on Trixie).
+	# aarch64 instead of the armv7l build (no armhf multiarch on Arch).
 	mkdir -p "${HOME}/Downloads"
 	if ls "${HOME}/Downloads"/hamrs-* >/dev/null 2>&1; then
 		mkdir -p "$HOME/Downloads/old-hamrs"
@@ -36,8 +35,8 @@ INSTALL(){
 	chmod +x hamrs
 	sudo mv hamrs /usr/local/bin/hamrs
 
-	# AppImages need FUSE 2 (libfuse2t64 on Trixie) plus the usual Electron libs.
-	bap_apt_install libfuse2 fuse3 libnss3 libgtk-3-0 libasound2 libgbm1 libxss1 libxtst6 libnotify4
+	# AppImages need fuse2 plus the usual Electron libs (pacman names via helper).
+	bap_pkg_install libfuse2 fuse3 libnss3 libgtk-3-0 libasound2 libgbm1 libxss1 libxtst6 libnotify4
 	sudo modprobe fuse 2>/dev/null || true
 
 	cat >"${HOME}/Downloads/hamrs.desktop" <<EOF

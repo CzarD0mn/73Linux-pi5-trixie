@@ -7,9 +7,9 @@ localVer=0
 
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
 	w1hkj_latest() {
@@ -51,14 +51,8 @@ INSTALL(){
 	##################################
 	#install needed depends
 	#check to see if 32 or 64 bit to detemine correct dependency
-	if [ `getconf LONG_BIT` = '64' ]; then
-	LIBJPG=libjpeg62-turbo-dev
-	if ! apt-cache show libjpeg62-turbo-dev >/dev/null 2>&1; then LIBJPG=libjpeg-dev; fi
-	else
-	LIBJPG=libjpeg9-dev
-	if ! apt-cache show libjpeg9-dev >/dev/null 2>&1; then LIBJPG=libjpeg-dev; fi
-	fi
-	sudo apt-get install -y build-essential pkg-config libfltk1.3-dev $LIBJPG libxft-dev libxinerama-dev libxcursor-dev libsndfile1-dev libsamplerate0-dev portaudio19-dev libpulse-dev libusb-1.0-0-dev texinfo libudev-dev
+	LIBJPG=libjpeg-turbo
+	bap_pkg_install build-essential pkg-config libfltk1.3-dev $LIBJPG libxft-dev libxinerama-dev libxcursor-dev libsndfile1-dev libsamplerate0-dev portaudio19-dev libpulse-dev libusb-1.0-0-dev texinfo libudev-dev
 	FLX=$(ldconfig -p | grep flxmlrpc)
 
 	if [ -z "$FLX" ]; then

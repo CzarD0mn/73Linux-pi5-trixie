@@ -5,14 +5,14 @@ Comment='GUI for ARDOP Modem'
 Ver=Update:1
 localVer=0
 
-# Pi 5 / Trixie fork: use G8BPQ's native aarch64 build (piARDOP_GUI64) on a
+# Arch aarch64 fork: use G8BPQ's native aarch64 build (piARDOP_GUI64) on a
 # 64-bit userland instead of the 32-bit armhf binary. The binary is still
 # installed as ~/ardop/piARDOP_GUI so the menu entry and VERSION are unchanged.
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
 	BASEURL=https://www.cantab.net/users/john.wiseman/Downloads/Beta
@@ -21,10 +21,10 @@ INSTALL(){
 
 	if [ "$(getconf LONG_BIT)" = 64 ]; then
 		BIN=piARDOP_GUI64
-		bap_apt_install libqt5core5a libqt5gui5 libqt5network5 libqt5widgets5
+		bap_pkg_install libqt5core5a libqt5gui5 libqt5network5 libqt5widgets5
 	else
 		BIN=piARDOP_GUI
-		sudo apt-get install -y libqt5widgets5 libqt5network5
+		bap_pkg_install libqt5widgets5 libqt5network5
 	fi
 
 	rm -f piARDOP_GUI.new

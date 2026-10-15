@@ -6,25 +6,27 @@ Ver=REPO
 localVer=REPO
 
 INSTALL(){
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
-	bap_apt_install python3-gps gpsd-tools gpsd-clients gpsd chrony python3-gi-cairo libgps-dev || return 1
+	bap_pkg_install python3-gps gpsd-tools gpsd-clients gpsd chrony python3-gi-cairo libgps-dev || return 1
 	if [ -f /etc/default/gpsd ] && [ ! -f /etc/default/gpsd.org ]; then
 		sudo mv /etc/default/gpsd /etc/default/gpsd.org
 	fi
 	sudo wget -q https://raw.githubusercontent.com/km4ack/pi-scripts/master/gpsd -O /etc/default/gpsd || return 1
-	CHRONYCHK=$(grep "refclock SHM 0 offset 0.5 delay 0.2 refid NMEA" /etc/chrony/chrony.conf)
-	if [ -z "$CHRONYCHK" ]; then
-		echo "refclock SHM 0 offset 0.5 delay 0.2 refid NMEA" | sudo tee -a /etc/chrony/chrony.conf >/dev/null
+	CHRONYCONF=/etc/chrony.conf
+	[ -f /etc/chrony/chrony.conf ] && CHRONYCONF=/etc/chrony/chrony.conf
+	if ! grep -q "refclock SHM 0 offset 0.5 delay 0.2 refid NMEA" "$CHRONYCONF" 2>/dev/null; then
+		echo "refclock SHM 0 offset 0.5 delay 0.2 refid NMEA" | sudo tee -a "$CHRONYCONF" >/dev/null
 	fi
 	sudo systemctl enable gpsd
+	sudo systemctl enable chronyd 2>/dev/null || true
 	GPS=$(grep "GPS=" "${BAPDIR}/cache/config.txt" | sed 's/GPS=//')
 	sudo sed -i "s|^DEVICES.*|DEVICES=\"${GPS}\"|" /etc/default/gpsd
 	sudo systemctl restart gpsd || true
-	sudo systemctl restart chrony || true
+	sudo systemctl restart chronyd || true
 }
 
 MENU(){
@@ -55,5 +57,5 @@ fi
 }
 
 REMOVE(){
-	sudo apt purge -y python3-gps gpsd-tools gpsd-clients gpsd chrony python3-gi-cairo libgps-dev
+	bap_pkg_remove python3-gps gpsd-tools gpsd-clients gpsd chrony python3-gi-cairo libgps-dev
 }

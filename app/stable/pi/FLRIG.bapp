@@ -14,31 +14,15 @@ INSTALL(){
 		find "${HOME}/.bap-source-files" -maxdepth 1 -type d -name "${PACKAGE}*" -exec rm -rf {} + 2>/dev/null || true
 	}
 
-	if [ -f "${BAPDIR}/bin/trixie-apt.sh" ]; then
+	if [ -f "${BAPDIR}/bin/arch-pkg.sh" ]; then
 		# shellcheck disable=SC1091
-		source "${BAPDIR}/bin/trixie-apt.sh"
+		source "${BAPDIR}/bin/arch-pkg.sh"
 	fi
 
-	apt_flrig_deps() {
-		local pkgs=(
-			build-essential autoconf automake pkg-config
-			libfltk1.3-dev libfltk1.3
-			libxft-dev libxinerama-dev libxcursor-dev
-			libsndfile1-dev libsamplerate0-dev portaudio19-dev
-			libpulse-dev libusb-1.0-0-dev texinfo libudev-dev
-		)
-		if apt-cache show libjpeg62-turbo-dev >/dev/null 2>&1; then
-			pkgs+=(libjpeg62-turbo-dev)
-		elif apt-cache show libjpeg62-dev >/dev/null 2>&1; then
-			pkgs+=(libjpeg62-dev)
-		else
-			pkgs+=(libjpeg-dev)
-		fi
-		if declare -F bap_apt_install >/dev/null; then
-			bap_apt_install "${pkgs[@]}"
-		else
-			sudo apt-get install -y "${pkgs[@]}"
-		fi
+	flrig_deps() {
+		bap_pkg_install base-devel autoconf automake pkgconf fltk libxft libxinerama \
+			libxcursor libsndfile libsamplerate portaudio libpulse libusb texinfo \
+			systemd-libs libjpeg-turbo
 	}
 
 	download_w1hkj_src() {
@@ -56,15 +40,15 @@ INSTALL(){
 		echo "$tarball"
 	}
 
-	install_from_apt() {
-		echo "Falling back to Debian flrig package"
-		sudo apt-get install -y flrig
+	install_from_repo() {
+		echo "Falling back to the Arch/AUR flrig package"
+		bap_pkg_install flrig
 	}
 
 	##################################
 	#	DEPENDS
 	##################################
-	apt_flrig_deps
+	flrig_deps
 
 	mkdir -p "${BUILDDIR}"
 	cd "${BUILDDIR}" || return 1
@@ -94,22 +78,22 @@ INSTALL(){
 	RIGTAR=$(download_w1hkj_src flrig) || RIGTAR=""
 	if [ -z "$RIGTAR" ] || [ ! -f "$RIGTAR" ]; then
 		echo "Could not download flrig source from W1HKJ"
-		install_from_apt
+		install_from_repo
 		return 0
 	fi
 
 	tar -zxvf "${RIGTAR}"
 	RIGPKG=${RIGTAR%.tar.gz}
-	cd "${BUILDDIR}/${RIGPKG}" || { install_from_apt; return 0; }
+	cd "${BUILDDIR}/${RIGPKG}" || { install_from_repo; return 0; }
 
 	if ! ./configure --prefix=/usr/local --enable-static; then
 		echo "configure failed"
-		install_from_apt
+		install_from_repo
 		return 0
 	fi
 	if ! make -j "${BAPCORE:-$(nproc)}"; then
 		echo "compile failed"
-		install_from_apt
+		install_from_repo
 		return 0
 	fi
 	sudo make install
@@ -124,7 +108,7 @@ REMOVE(){
 			cd "${BUILDDIR}/${DIR}" && sudo make uninstall || true
 		fi
 	fi
-	sudo apt-get remove -y flrig 2>/dev/null || true
+	bap_pkg_remove flrig 2>/dev/null || true
 	sudo rm -f /usr/local/bin/flrig /usr/local/share/applications/flrig.desktop
 }
 
